@@ -1123,7 +1123,13 @@ lazy val std = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         ProblemFilters.exclude[FinalMethodProblem](
           "cats.effect.std.Dispatcher#RegState#Unstarted.toString"),
         ProblemFilters.exclude[DirectMissingMethodProblem](
-          "cats.effect.std.Dispatcher#Registration#Primary.*")
+          "cats.effect.std.Dispatcher#Registration#Primary.*"),
+        // #4065, moved to its own file.
+        ProblemFilters.exclude[MissingClassProblem]("cats.effect.std.Mutex$ConcurrentImpl$"),
+        ProblemFilters.exclude[DirectMissingMethodProblem](
+          "cats.effect.std.Mutex#ConcurrentImpl.EmptyCell"),
+        ProblemFilters.exclude[DirectMissingMethodProblem](
+          "cats.effect.std.Mutex#ConcurrentImpl.LockQueueCell")
       )
   )
   .jsSettings(
