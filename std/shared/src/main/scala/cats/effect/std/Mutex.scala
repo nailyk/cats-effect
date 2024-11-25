@@ -71,7 +71,7 @@ object Mutex {
         // Initialize the state with an already completed cell.
         LockQueue.EmptyCell
       )
-      .map(state => new ConcurrentImpl[F](state))
+      .map(state => new ConcurrentImpl(state))
 
   /**
    * Creates a new `Mutex`. Like `apply` but initializes state using another effect constructor.
@@ -82,7 +82,7 @@ object Mutex {
         // Initialize the state with an already completed cell.
         LockQueue.EmptyCell
       )
-      .map(state => new ConcurrentImpl[G](state))
+      .map(state => new ConcurrentImpl(state))
 
   private final class ConcurrentImpl[F[_]](
       state: Ref[F, LockQueue.Cell]

@@ -55,7 +55,7 @@ object KeyedMutex {
    */
   def apply[F[_], K](implicit F: Concurrent[F]): F[KeyedMutex[F, K]] =
     MapRef[F, K, LockQueue.Cell].map { mapref =>
-      new ConcurrentImpl[F, K](
+      new ConcurrentImpl(
         // Initialize the state with an already completed cell.
         state = MapRef.defaultedMapRef(mapref, default = LockQueue.EmptyCell)
       )
@@ -67,7 +67,7 @@ object KeyedMutex {
    */
   def in[F[_], G[_], K](implicit F: Sync[F], G: Async[G]): F[KeyedMutex[G, K]] =
     MapRef.inConcurrentHashMap[F, G, K, LockQueue.Cell]().map { mapref =>
-      new ConcurrentImpl[G, K](
+      new ConcurrentImpl(
         // Initialize the state with an already completed cell.
         state = MapRef.defaultedMapRef(mapref, default = LockQueue.EmptyCell)
       )
