@@ -43,6 +43,8 @@ import cats.syntax.all._
  *
  * @see
  *   [[cats.effect.std.AtomicCell]]
+ * @see
+ *   [[cats.effect.std.KeyedMutex]]
  */
 abstract class Mutex[F[_]] {
 

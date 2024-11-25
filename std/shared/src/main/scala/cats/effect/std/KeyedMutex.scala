@@ -24,8 +24,8 @@ import cats.syntax.all._
 /**
  * A purely functional keyed mutex.
  *
- * A mutex is a concurrency primitive that can be used to give access to a resource to only one
- * fiber at a time; e.g. a [[cats.effect.kernel.Ref]].
+ * A keyed mutex is a concurrency primitive that can be used to give access to a keyed resource
+ * to only one fiber at a time; e.g. a [[cats.effect.std.MapRef]].
  *
  * '''Note''': This lock is not reentrant, thus this
  * `mutex.lock(key).surround(mutex.lock(key).use_)` will deadlock.
