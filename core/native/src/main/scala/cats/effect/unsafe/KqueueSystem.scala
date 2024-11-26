@@ -24,7 +24,7 @@ import org.typelevel.scalaccompat.annotation._
 
 import scala.annotation.tailrec
 import scala.collection.mutable.LongMap
-import scala.scalanative.libc.errno._
+// import scala.scalanative.libc.errno._
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.string._
 import scala.scalanative.posix.time._
@@ -150,7 +150,7 @@ object KqueueSystem extends PollingSystem {
     ): Unit = {
       val change = changelist + changeCount.toLong
 
-      change.ident = ident.toULong
+      change.ident = ident.toUSize
       change.filter = filter
       change.flags = (flags.toInt | EV_ONESHOT).toUShort
 
@@ -170,7 +170,7 @@ object KqueueSystem extends PollingSystem {
 
     private[KqueueSystem] def poll(timeout: Long): Boolean = {
 
-      val eventlist = stackalloc[kevent64_s](MaxEvents.toULong)
+      val eventlist = stackalloc[kevent64_s](MaxEvents.toCSize)
       var polled = false
 
       @tailrec
@@ -221,8 +221,8 @@ object KqueueSystem extends PollingSystem {
         if (timeout <= 0) null
         else {
           val ts = stackalloc[timespec]()
-          ts.tv_sec = timeout / 1000000000
-          ts.tv_nsec = timeout % 1000000000
+          ts.tv_sec = (timeout / 1000000000).toInt
+          ts.tv_nsec = (timeout % 1000000000).toInt
           ts
         }
 

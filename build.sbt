@@ -300,12 +300,12 @@ ThisBuild / apiURL := Some(url("https://typelevel.org/cats-effect/api/3.x/"))
 
 ThisBuild / autoAPIMappings := true
 
-val CatsVersion = "2.11.0"
-val CatsMtlVersion = "1.3.1"
-val Specs2Version = "4.20.5"
-val ScalaCheckVersion = "1.17.1"
-val DisciplineVersion = "1.4.0"
-val CoopVersion = "1.2.0"
+val CatsVersion = "2.12.0"
+val CatsMtlVersion = "1.5.0"
+val Specs2Version = "4.20.9"
+val ScalaCheckVersion = "1.18.1"
+val DisciplineVersion = "1.5.0"
+val CoopVersion = "1.3.0"
 
 val MacrotaskExecutorVersion = "1.1.1"
 
@@ -406,7 +406,7 @@ lazy val kernel = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies += "org.scala-js" %%% "scala-js-macrotask-executor" % MacrotaskExecutorVersion % Test
   )
   .nativeSettings(
-    libraryDependencies += "io.github.cquiroz" %%% "scala-java-time" % "2.5.0"
+    libraryDependencies += "io.github.cquiroz" %%% "scala-java-time" % "2.6.0"
   )
 
 /**
@@ -951,7 +951,7 @@ def configureIOAppTests(p: Project): Project =
       buildInfoPackage := "cats.effect",
       buildInfoKeys ++= Seq(
         "jsRunner" -> (tests.js / Compile / fastOptJS / artifactPath).value,
-        "nativeRunner" -> (tests.native / Compile / nativeLink / artifactPath).value
+        "nativeRunner" -> "" //(tests.native / Compile / nativeConfig).value
       )
     )
 

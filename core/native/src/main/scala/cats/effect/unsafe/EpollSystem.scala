@@ -24,7 +24,7 @@ import org.typelevel.scalaccompat.annotation._
 
 import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
-import scala.scalanative.libc.errno._
+// import scala.scalanative.libc.errno._
 import scala.scalanative.meta.LinktimeInfo
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.string._
@@ -185,7 +185,7 @@ object EpollSystem extends PollingSystem {
 
     private[EpollSystem] def poll(timeout: Long): Boolean = {
 
-      val events = stackalloc[epoll_event](MaxEvents.toULong)
+      val events = stackalloc[epoll_event](MaxEvents.toCSize)
       var polled = false
 
       @tailrec
