@@ -17,6 +17,7 @@
 package cats.effect
 
 import cats.effect.metrics.CpuStarvationWarningMetrics
+import cats.effect.std.Console
 import cats.syntax.all._
 
 import scala.concurrent.CancellationException
@@ -175,6 +176,53 @@ trait IOApp {
     CpuStarvationCheck.logWarning(metrics)
 
   /**
+   * Configures the action to perform when unhandled errors are caught by the runtime. An
+   * unhandled error is an error that is raised (and not handled) on a Fiber that nobody is
+   * joining.
+   *
+   * For example:
+   *
+   * {{{
+   *   import scala.concurrent.duration._
+   *   override def run: IO[Unit] = IO(throw new Exception("")).start *> IO.sleep(1.second)
+   * }}}
+   *
+   * In this case, the exception is raised on a Fiber with no listeners. Nobody would be
+   * notified about that error. Therefore it is unhandled, and it goes through the reportFailure
+   * mechanism.
+   *
+   * By default, `reportFailure` simply delegates to
+   * [[cats.effect.std.Console!.printStackTrace]]. It is safe to perform any `IO` action within
+   * this handler; it will not block the progress of the runtime. With that said, some care
+   * should be taken to avoid raising unhandled errors as a result of handling unhandled errors,
+   * since that will result in the obvious chaos.
+   */
+  protected def reportFailure(err: Throwable): IO[Unit] =
+    Console[IO].printStackTrace(err)
+
+  /**
+   * Controls the number of worker threads which will be allocated to the compute pool in the
+   * underlying runtime. In general, this should be no ''greater'' than the number of physical
+   * threads made available by the underlying kernel (which can be determined using
+   * `Runtime.getRuntime().availableProcessors()`). For any application which has significant
+   * additional non-compute thread utilization (such as asynchronous I/O worker threads), it may
+   * be optimal to reduce the number of compute threads by the corresponding amount such that
+   * the total number of active threads exactly matches the number of underlying physical
+   * threads.
+   *
+   * In practice, tuning this parameter is unlikely to affect your application performance
+   * beyond a few percentage points, and the default value is optimal (or close to optimal) in
+   * ''most'' common scenarios.
+   *
+   * '''This setting is JVM-specific and will not compile on JavaScript.'''
+   *
+   * For more details on Cats Effect's runtime threading model please see
+   * [[https://typelevel.org/cats-effect/docs/thread-model]].
+   */
+  protected def computeWorkerThreadCount: Int =
+    Math.max(2, Runtime.getRuntime().availableProcessors())
+
+  /**
    * The [[unsafe.PollingSystem]] used by the [[runtime]] which will evaluate the [[IO]]
    * produced by `run`. It is very unlikely that users will need to override this method.
    *
@@ -205,14 +253,29 @@ trait IOApp {
       import unsafe.IORuntime
 
       val installed = IORuntime installGlobal {
-        val (loop, poller, loopDown) = IORuntime.createEventLoop(pollingSystem)
+        val (compute, poller, compDown) =
+          IORuntime.createWorkStealingComputeThreadPool(
+            threads = computeWorkerThreadCount,
+            reportFailure = t => reportFailure(t).unsafeRunAndForgetWithoutCallback()(runtime),
+            blockedThreadDetectionEnabled = false,    // TODO
+            pollingSystem = pollingSystem
+          )
+
+        val (blocking, blockDown) =
+          IORuntime.createDefaultBlockingExecutionContext(
+            threadPrefix = "io-blocking",
+            reportFailure =
+              (t: Throwable) => reportFailure(t).unsafeRunAndForgetWithoutCallback()(runtime)
+          )
+
         IORuntime(
-          loop,
-          loop,
-          loop,
+          compute,
+          blocking,
+          compute,
           List(poller),
-          () => {
-            loopDown()
+          { () =>
+            compDown()
+            blockDown()
             IORuntime.resetGlobal()
           },
           runtimeConfig)

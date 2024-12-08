@@ -23,7 +23,7 @@ import cats.syntax.all._
 import scala.collection.mutable
 
 package object examples {
-  def exampleExecutionContext = IORuntime.defaultComputeExecutionContext
+  def exampleExecutionContext = IORuntime.global.compute
 }
 
 package examples {

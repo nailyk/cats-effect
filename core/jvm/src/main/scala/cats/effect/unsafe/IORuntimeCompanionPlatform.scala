@@ -204,19 +204,8 @@ private[unsafe] abstract class IORuntimeCompanionPlatform { this: IORuntime.type
     (ExecutionContext.fromExecutor(executor, reportFailure), { () => executor.shutdown() })
   }
 
-  def createDefaultScheduler(threadPrefix: String = "io-scheduler"): (Scheduler, () => Unit) = {
-    val scheduler = new ScheduledThreadPoolExecutor(
-      1,
-      { r =>
-        val t = new Thread(r)
-        t.setName(threadPrefix)
-        t.setDaemon(true)
-        t.setPriority(Thread.MAX_PRIORITY)
-        t
-      })
-    scheduler.setRemoveOnCancelPolicy(true)
-    (Scheduler.fromScheduledExecutor(scheduler), { () => scheduler.shutdown() })
-  }
+  def createDefaultScheduler(threadPrefix: String = "io-scheduler"): (Scheduler, () => Unit) =
+    Scheduler.createDefaultScheduler(threadPrefix)
 
   def createDefaultPollingSystem(): PollingSystem = SelectorSystem()
 
