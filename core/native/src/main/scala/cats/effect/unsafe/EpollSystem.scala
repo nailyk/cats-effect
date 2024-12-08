@@ -269,7 +269,7 @@ object EpollSystem extends PollingSystem {
     final val EPOLLONESHOT = 1 << 30
     final val EPOLLET = 1 << 31
 
-    type epoll_event
+    type epoll_event <: AnyRef
     type epoll_data_t = Ptr[Byte]
 
     def epoll_create1(flags: Int): Int = extern

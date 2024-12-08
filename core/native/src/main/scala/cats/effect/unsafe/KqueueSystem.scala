@@ -254,7 +254,7 @@ object KqueueSystem extends PollingSystem {
     final val EV_CLEAR = 0x0020
     final val EV_ERROR = 0x4000
 
-    type kevent64_s
+    type kevent64_s <: AnyRef
 
     def kqueue(): CInt = extern
 
