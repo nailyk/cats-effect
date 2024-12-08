@@ -1,6 +1,8 @@
 package cats.effect.unsafe
 
-import java.util.concurrent.atomic.AtomicIntegerFieldUpdater
+import scala.scalanative.libc.stdatomic._
+import scala.scalanative.libc.stdatomic.memory_order.memory_order_release
+import scala.scalanative.runtime.{fromRawPtr, Intrinsics}
 
 // native mirror of LocalQueue.java
 private class Head {
@@ -34,8 +36,14 @@ private class Head {
 }
 
 private object Head {
-  private[unsafe] val updater: AtomicIntegerFieldUpdater[Head] =
-      AtomicIntegerFieldUpdater.newUpdater(classOf[Head], "head")
+  private[unsafe] object updater {
+
+    def get(obj: Head): Int =
+      fromRawPtr[atomic_int](Intrinsics.classFieldRawPtr[Head](obj, "head")).atomic.load()
+
+    def compareAndSet(obj: Head, oldHd: Int, newHd: Int): Boolean =
+      fromRawPtr[atomic_int](Intrinsics.classFieldRawPtr[Head](obj, "head")).atomic.compareExchangeStrong(oldHd, newHd)
+  }
 }
 
 private class Tail extends Head {
@@ -57,8 +65,15 @@ private class Tail extends Head {
 }
 
 private object Tail {
-  private[unsafe] val updater: AtomicIntegerFieldUpdater[Tail] =
-      AtomicIntegerFieldUpdater.newUpdater(classOf[Tail], "tailPublisher");
+
+  private[unsafe] object updater {
+
+    def get(obj: Tail): Int =
+      fromRawPtr[atomic_int](Intrinsics.classFieldRawPtr[Tail](obj, "tail")).atomic.load()
+
+    def lazySet(obj: Tail, newValue: Int): Unit =
+      fromRawPtr[atomic_int](Intrinsics.classFieldRawPtr[Tail](obj, "tail")).atomic.store(newValue, memory_order_release)
+  }
 }
 
 private class LocalQueuePadding extends Tail
