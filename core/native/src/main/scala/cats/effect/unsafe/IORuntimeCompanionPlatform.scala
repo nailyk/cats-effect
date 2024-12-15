@@ -61,13 +61,14 @@ private[unsafe] abstract class IORuntimeCompanionPlatform { this: IORuntime.type
   def createDefaultScheduler(threadPrefix: String = "io-scheduler"): (Scheduler, () => Unit) =
     Scheduler.createDefaultScheduler(threadPrefix)
 
-  def createDefaultPollingSystem(): PollingSystem =
-    if (LinktimeInfo.isLinux)
-      EpollSystem
-    else if (LinktimeInfo.isMac)
-      KqueueSystem
-    else
+  def createDefaultPollingSystem(): PollingSystem = {
+  //  if (LinktimeInfo.isLinux)
+  //    EpollSystem
+  //  else if (LinktimeInfo.isMac)
+  //    KqueueSystem
+  //  else
       SleepSystem
+  }
 
   def createDefaultBlockingExecutionContext(
       threadPrefix: String = "io-blocking"
