@@ -64,7 +64,9 @@ object EpollSystem extends PollingSystem {
 
   def needsPoll(poller: Poller): Boolean = poller.needsPoll()
 
-  def interrupt(targetThread: Thread, targetPoller: Poller): Unit = ()
+  def interrupt(targetThread: Thread, targetPoller: Poller): Unit = {
+    targetPoller.interrupt()
+  }
 
   private final class FileDescriptorPollerImpl private[EpollSystem] (
       ctx: PollingContext[Poller])
@@ -179,9 +181,30 @@ object EpollSystem extends PollingSystem {
     private[this] val handles: Set[PollHandle] =
       Collections.newSetFromMap(new IdentityHashMap)
 
-    private[EpollSystem] def close(): Unit =
-      if (unistd.close(epfd) != 0)
+    private[this] val interruptFd: Int = {
+      val fd = eventfd.eventfd(0.toUInt, eventfd.EFD_NONBLOCK | eventfd.EFD_CLOEXEC)
+      if (fd == -1) {
         throw new IOException(fromCString(strerror(errno)))
+      }
+      val event = stackalloc[epoll_event]()
+      event.events = (EPOLLET | EPOLLIN).toUInt
+      event.data = null
+      if (epoll_ctl(epfd, EPOLL_CTL_ADD, fd, event) != 0) {
+        throw new IOException(fromCString(strerror(errno)))
+      }
+      fd
+    }
+
+    private[EpollSystem] def close(): Unit = {
+      try {
+        if (unistd.close(epfd) != 0)
+          throw new IOException(fromCString(strerror(errno)))
+      } finally {
+        if (unistd.close(interruptFd) != 0) {
+          throw new IOException(fromCString(strerror(errno)))
+        }
+      }
+    }
 
     private[EpollSystem] def poll(timeout: Long): Boolean = {
 
@@ -200,7 +223,14 @@ object EpollSystem extends PollingSystem {
           while (i < triggeredEvents) {
             val event = events + i.toLong
             val handle = fromPtr(event.data)
-            handle.notify(event.events.toInt)
+            if (handle ne null) {
+              handle.notify(event.events.toInt)
+            } else {
+              val buf = stackalloc[CUnsignedInt]()
+              if (unistd.read(interruptFd, buf, 8.toCSize) == -1) {
+                throw new IOException(fromCString(strerror(errno)))
+              }
+            }
             i += 1
           }
         } else if (errno != EINTR) { // spurious wake-up by signal
@@ -220,6 +250,15 @@ object EpollSystem extends PollingSystem {
     }
 
     private[EpollSystem] def needsPoll(): Boolean = !handles.isEmpty()
+
+    private[EpollSystem] def interrupt(): Unit = {
+      val buf = stackalloc[CUnsignedInt]()
+      buf(0) = 1.toUInt
+      // TODO: this is not threadsafe, we're reading `interruptFd` without synchronization:
+      if (unistd.write(this.interruptFd, buf, 8.toCSize) == -1) {
+        throw new IOException(fromCString(strerror(errno)))
+      }
+    }
 
     private[EpollSystem] def register(
         fd: Int,
@@ -276,9 +315,9 @@ object EpollSystem extends PollingSystem {
 
     def epoll_ctl(epfd: Int, op: Int, fd: Int, event: Ptr[epoll_event]): Int = extern
 
+    @blocking // TODO: create non-@blocking version
     def epoll_wait(epfd: Int, events: Ptr[epoll_event], maxevents: Int, timeout: Int): Int =
       extern
-
   }
 
   private object epollImplicits {
@@ -316,5 +355,15 @@ object EpollSystem extends PollingSystem {
         Tag
           .materializeCArrayTag[Byte, Nat.Digit2[Nat._1, Nat._6]]
           .asInstanceOf[Tag[epoll_event]]
+  }
+
+  @extern // eventfd.h
+  private object eventfd { // TODO: should this be in scala-native?
+
+    final val EFD_CLOEXEC =  0x80000 // TODO: this might be platform-dependent
+    final val EFD_NONBLOCK = 0x00800 // TODO: this might be platform-dependent
+
+    def eventfd(initval: CUnsignedInt, flags: CInt): CInt =
+      extern
   }
 }

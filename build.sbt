@@ -24,6 +24,7 @@ import org.openqa.selenium.firefox.{FirefoxOptions, FirefoxProfile}
 import org.scalajs.jsenv.nodejs.NodeJSEnv
 import org.scalajs.jsenv.selenium.SeleniumJSEnv
 import sbtcrossproject.CrossProject
+import scala.scalanative.build._
 
 import JSEnv._
 
@@ -940,7 +941,12 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
     Test / javaOptions += "-Dcats.effect.ioLocalPropagation=true"
   )
   .nativeSettings(
-    Compile / mainClass := Some("catseffect.examples.NativeRunner")
+    Compile / mainClass := Some("catseffect.examples.NativeRunner"),
+    nativeConfig ~= { c => // TODO: remove this when it seems to work
+      c.withSourceLevelDebuggingConfig(_.enableAll) // enable generation of debug information
+        .withOptimize(false)  // disable Scala Native optimizer
+        .withMode(Mode.debug) // compile using LLVM without optimizations
+    },
   )
 
 def configureIOAppTests(p: Project): Project =

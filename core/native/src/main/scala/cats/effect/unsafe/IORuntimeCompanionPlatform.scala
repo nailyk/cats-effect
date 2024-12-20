@@ -62,11 +62,11 @@ private[unsafe] abstract class IORuntimeCompanionPlatform { this: IORuntime.type
     Scheduler.createDefaultScheduler(threadPrefix)
 
   def createDefaultPollingSystem(): PollingSystem = {
-  //  if (LinktimeInfo.isLinux)
-  //    EpollSystem
-  //  else if (LinktimeInfo.isMac)
-  //    KqueueSystem
-  //  else
+    if (LinktimeInfo.isLinux)
+      EpollSystem
+    else if (LinktimeInfo.isMac)
+      KqueueSystem
+    else
       SleepSystem
   }
 
