@@ -117,7 +117,7 @@ trait Runners extends SpecificationLike with TestInstances with RunnersPlatform 
         .sleep(
           duration,
           { () =>
-            if (p.tryFailure(new TestTimeoutException)) {
+            if (p.tryFailure(new TestTimeoutException(s"test timed out after ${duration}"))) {
               cancel()
               ()
             }
@@ -133,4 +133,4 @@ trait Runners extends SpecificationLike with TestInstances with RunnersPlatform 
   }
 }
 
-class TestTimeoutException extends Exception
+class TestTimeoutException(msg: String) extends Exception(msg)
