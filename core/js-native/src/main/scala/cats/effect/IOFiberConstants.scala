@@ -46,7 +46,7 @@ private object IOFiberConstants {
   final val AutoCedeR = 7
   final val DoneR = 8
 
-  final val ioLocalPropagation = false
+  final val TrackFiberContext = false
 
   @nowarn212
   @inline def isVirtualThread(t: Thread): Boolean = false

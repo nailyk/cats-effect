@@ -17,6 +17,8 @@
 package cats.effect
 package unsafe
 
+import cats.effect.unsafe.metrics.PollerMetrics
+
 import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration._
 
@@ -45,6 +47,7 @@ abstract class PollingExecutorScheduler(pollEvery: Int)
       }
       def needsPoll(poller: Poller) = needsPoll
       def interrupt(targetThread: Thread, targetPoller: Poller): Unit = ()
+      def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
     }
   )
 

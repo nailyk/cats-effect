@@ -45,20 +45,25 @@ class DispatcherJVMSpec extends BaseSpec {
       } yield ok
     }
 
-    "Propagate Java thread interruption in unsafeRunSync" in real {
+    "propagate Java thread interruption in unsafeRunSync" in real {
       Dispatcher.parallel[IO](await = true).use { dispatcher =>
         for {
-          canceled <- Deferred[IO, Unit]
-          io = IO.sleep(1.second).onCancel(canceled.complete(()).void)
+          pre <- IO.deferred[Unit]
+          canceled <- IO.deferred[Unit]
+
+          io = (pre.complete(()) *> IO.never).onCancel(canceled.complete(()).void)
+
           f <- IO.interruptible {
             try dispatcher.unsafeRunSync(io)
             catch { case _: InterruptedException => }
           }.start
-          _ <- IO.sleep(100.millis)
+
+          _ <- pre.get
           _ <- f.cancel
+
           _ <- canceled
             .get
-            .timeoutTo(300.millis, IO.raiseError(new Exception("io was not canceled")))
+            .timeoutTo(1.second, IO.raiseError(new Exception("io was not canceled")))
         } yield ok
       }
     }

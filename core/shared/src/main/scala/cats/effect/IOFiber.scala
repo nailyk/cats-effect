@@ -115,7 +115,7 @@ private final class IOFiber[A](
     // insert a read barrier after every async boundary
     readBarrier()
 
-    if (ioLocalPropagation) {
+    if (TrackFiberContext) {
       IOFiber.setCurrentIOFiber(this)
     }
 
@@ -131,7 +131,7 @@ private final class IOFiber[A](
       case 8 => () // DoneR
     }
 
-    if (ioLocalPropagation) {
+    if (TrackFiberContext) {
       IOFiber.setCurrentIOFiber(null)
     }
   }

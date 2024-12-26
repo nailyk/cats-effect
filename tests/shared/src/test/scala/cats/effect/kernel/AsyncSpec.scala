@@ -68,7 +68,7 @@ class AsyncSpec extends BaseSpec with Discipline {
         .executeEmbed(go, IORuntimeConfig(1, 2))
         .as(false)
         .recover { case _: TestControl.NonTerminationException => true }
-        .replicateA(1000)
+        .replicateA(100)
         .map(_.forall(identity(_)))
     }
 

@@ -18,6 +18,7 @@ package cats.effect
 package unsafe
 
 import cats.effect.std.Mutex
+import cats.effect.unsafe.metrics.PollerMetrics
 import cats.syntax.all._
 
 import org.typelevel.scalaccompat.annotation._
@@ -65,6 +66,8 @@ object KqueueSystem extends PollingSystem {
     poller.needsPoll()
 
   def interrupt(targetThread: Thread, targetPoller: Poller): Unit = ()
+
+  def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
 
   private final class FileDescriptorPollerImpl private[KqueueSystem] (
       ctx: PollingContext[Poller]

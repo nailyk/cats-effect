@@ -31,220 +31,277 @@ sealed trait WorkStealingPoolMetrics {
   def identifier: String
 
   /**
-   * Compute-specific metrics of the work-stealing thread pool.
+   * The number of worker thread instances backing the work-stealing thread pool (WSTP).
+   *
+   * @note
+   *   this is a fixed value, as the WSTP has a fixed number of worker threads.
    */
-  def compute: WorkStealingPoolMetrics.ComputeMetrics
+  def workerThreadCount(): Int
 
   /**
-   * The list of queue-specific metrics of the work-stealing thread pool.
+   * The number of active worker thread instances currently executing fibers on the compute
+   * thread pool.
+   *
+   * @note
+   *   the value may differ between invocations
    */
-  def localQueues: List[WorkStealingPoolMetrics.LocalQueueMetrics]
+  def activeThreadCount(): Int
+
+  /**
+   * The number of worker thread instances currently searching for fibers to steal from other
+   * worker threads.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def searchingThreadCount(): Int
+
+  /**
+   * The number of worker thread instances that can run blocking actions on the compute thread
+   * pool.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def blockedWorkerThreadCount(): Int
+
+  /**
+   * The total number of fibers enqueued on all local queues.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def localQueueFiberCount(): Long
+
+  /**
+   * The number of fibers which are currently asynchronously suspended.
+   *
+   * @note
+   *   This counter is not synchronized due to performance reasons and might be reporting
+   *   out-of-date numbers.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def suspendedFiberCount(): Long
+
+  /**
+   * The list of worker-specific metrics of this work-stealing thread pool.
+   */
+  def workerThreads: List[WorkerThreadMetrics]
+}
+
+sealed trait WorkerThreadMetrics {
+
+  /**
+   * The index of this WorkerThread.
+   */
+  def index: Int
+
+  /**
+   * The total amount of time in nanoseconds that this WorkerThread has been parked.
+   */
+  def idleTime(): Long
+
+  /**
+   * The total number of times that this WorkerThread has parked.
+   */
+  def parkedCount(): Long
+
+  /**
+   * The total number of times that this WorkerThread has polled for I/O events.
+   */
+  def polledCount(): Long
+
+  /**
+   * The total number of times that this WorkerThread has switched to a blocking thread and been
+   * replaced.
+   */
+  def blockingCount(): Long
+
+  /**
+   * The total number of times that this WorkerThread has been replaced by a newly spawned
+   * thread.
+   */
+  def respawnCount(): Long
+
+  /**
+   * LocalQueue-specific metrics of this WorkerThread.
+   */
+  def localQueue: LocalQueueMetrics
+
+  /**
+   * TimerHeap-specific metrics of this WorkerThread.
+   */
+  def timerHeap: TimerHeapMetrics
+
+  /**
+   * Poller-specific metrics of this WorkerThread.
+   */
+  def poller: PollerMetrics
+}
+
+/**
+ * The metrics of the local queue.
+ */
+sealed trait LocalQueueMetrics {
+
+  /**
+   * The current number of enqueued fibers.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def fiberCount(): Int
+
+  /**
+   * The total number of fibers enqueued during the lifetime of the local queue.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def totalFiberCount(): Long
+
+  /**
+   * The total number of fibers spilt over to the external queue.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def totalSpilloverCount(): Long
+
+  /**
+   * The total number of successful steal attempts by other worker threads.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def successfulStealAttemptCount(): Long
+
+  /**
+   * The total number of stolen fibers by other worker threads.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def stolenFiberCount(): Long
+
+}
+
+sealed trait TimerHeapMetrics {
+
+  /**
+   * The current number of the outstanding timers, that remain to be executed.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def timersOutstandingCount(): Int
+
+  /**
+   * The total number of the successfully executed timers.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def totalTimersExecutedCount(): Long
+
+  /**
+   * The total number of the scheduled timers.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def totalTimersScheduledCount(): Long
+
+  /**
+   * The total number of the canceled timers.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def totalTimersCanceledCount(): Long
+
+  /**
+   * Returns the time in nanoseconds till the next due to fire.
+   *
+   * The negative number could indicate that the worker thread is overwhelmed by (long-running)
+   * tasks and not able to check/trigger timers frequently enough. The indication is similar to
+   * the starvation checker.
+   *
+   * Returns `None` when there is no upcoming timer.
+   *
+   * @note
+   *   the value may differ between invocations
+   */
+  def nextTimerDue(): Option[Long]
+
+  /**
+   * Returns the total number of times the heap packed itself to remove canceled timers.
+   */
+  def packCount(): Long
+
 }
 
 object WorkStealingPoolMetrics {
 
-  /**
-   * The compute metrics of the work-stealing thread pool (WSTP).
-   */
-  sealed trait ComputeMetrics {
-
-    /**
-     * The number of worker thread instances backing the work-stealing thread pool (WSTP).
-     *
-     * @note
-     *   this is a fixed value, as the WSTP has a fixed number of worker threads.
-     */
-    def workerThreadCount(): Int
-
-    /**
-     * The number of active worker thread instances currently executing fibers on the compute
-     * thread pool.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def activeThreadCount(): Int
-
-    /**
-     * The number of worker thread instances currently searching for fibers to steal from other
-     * worker threads.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def searchingThreadCount(): Int
-
-    /**
-     * The number of worker thread instances that can run blocking actions on the compute thread
-     * pool.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def blockedWorkerThreadCount(): Int
-
-    /**
-     * The total number of fibers enqueued on all local queues.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def localQueueFiberCount(): Long
-
-    /**
-     * The number of fibers which are currently asynchronously suspended.
-     *
-     * @note
-     *   This counter is not synchronized due to performance reasons and might be reporting
-     *   out-of-date numbers.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def suspendedFiberCount(): Long
-  }
-
-  /**
-   * The metrics of the local queue.
-   */
-  sealed trait LocalQueueMetrics {
-
-    /**
-     * The index of the LocalQueue.
-     */
-    def index: Int
-
-    /**
-     * The current number of enqueued fibers.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def fiberCount(): Int
-
-    /**
-     * The total number of fibers enqueued during the lifetime of the local queue.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def totalFiberCount(): Long
-
-    /**
-     * The total number of fibers spilt over to the external queue.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def totalSpilloverCount(): Long
-
-    /**
-     * The total number of successful steal attempts by other worker threads.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def successfulStealAttemptCount(): Long
-
-    /**
-     * The total number of stolen fibers by other worker threads.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def stolenFiberCount(): Long
-
-    /**
-     * The index that represents the head of the queue.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def headIndex(): Int
-
-    /**
-     * The index that represents the tail of the queue.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def tailIndex(): Int
-
-    /**
-     * The "real" value of the head of the local queue. This value represents the state of the
-     * head which is valid for the owner worker thread. This is an unsigned 16 bit integer.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def realHeadTag(): Int
-
-    /**
-     * The "steal" tag of the head of the local queue. This value represents the state of the
-     * head which is valid for any worker thread looking to steal work from this local queue.
-     * This is an unsigned 16 bit integer.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def stealHeadTag(): Int
-
-    /**
-     * The "tail" tag of the tail of the local queue. This value represents the state of the
-     * tail which is valid for the owner worker thread, used for enqueuing fibers into the local
-     * queue, as well as any other worker thread looking to steal work from this local queue,
-     * used for calculating how many fibers to steal. This is an unsigned 16 bit integer.
-     *
-     * @note
-     *   the value may differ between invocations
-     */
-    def tailTag(): Int
-  }
-
   private[metrics] def apply(ec: ExecutionContext): Option[WorkStealingPoolMetrics] =
     ec match {
-      case wstp: WorkStealingThreadPool[_] =>
-        val metrics = new WorkStealingPoolMetrics {
-          val identifier: String =
-            wstp.id.toString
-
-          val compute: ComputeMetrics =
-            computeMetrics(wstp)
-
-          val localQueues: List[LocalQueueMetrics] =
-            wstp.localQueues.toList.zipWithIndex.map {
-              case (queue, idx) => localQueueMetrics(queue, idx)
-            }
-        }
-
-        Some(metrics)
-
-      case _ =>
-        None
+      case wstp: WorkStealingThreadPool[_] => Some(workStealingThreadPoolMetrics(wstp))
+      case _ => None
     }
 
-  private def computeMetrics(wstp: WorkStealingThreadPool[_]): ComputeMetrics =
-    new ComputeMetrics {
-      def workerThreadCount(): Int = wstp.getWorkerThreadCount()
-      def activeThreadCount(): Int = wstp.getActiveThreadCount()
-      def searchingThreadCount(): Int = wstp.getSearchingThreadCount()
-      def blockedWorkerThreadCount(): Int = wstp.getBlockedWorkerThreadCount()
-      def localQueueFiberCount(): Long = wstp.getLocalQueueFiberCount()
-      def suspendedFiberCount(): Long = wstp.getSuspendedFiberCount()
-    }
+  private def workStealingThreadPoolMetrics(
+      wstp: WorkStealingThreadPool[_ <: AnyRef]
+  ): WorkStealingPoolMetrics = new WorkStealingPoolMetrics {
+    val identifier =
+      wstp.id.toString
 
-  private def localQueueMetrics(queue: LocalQueue, idx: Int): LocalQueueMetrics =
+    def workerThreadCount(): Int = wstp.getWorkerThreadCount()
+    def activeThreadCount(): Int = wstp.getActiveThreadCount()
+    def searchingThreadCount(): Int = wstp.getSearchingThreadCount()
+    def blockedWorkerThreadCount(): Int = wstp.getBlockedWorkerThreadCount()
+    def localQueueFiberCount(): Long = wstp.getLocalQueueFiberCount()
+    def suspendedFiberCount(): Long = wstp.getSuspendedFiberCount()
+
+    val workerThreads: List[WorkerThreadMetrics] =
+      List.range(0, workerThreadCount()).map(workerThreadMetrics(wstp, _))
+  }
+
+  private def workerThreadMetrics[P <: AnyRef](
+      wstp: WorkStealingThreadPool[P],
+      idx: Int
+  ): WorkerThreadMetrics = new WorkerThreadMetrics {
+    val index: Int = idx
+
+    private val metrics = wstp.metrices(idx)
+    def idleTime(): Long = metrics.getIdleTime()
+    def parkedCount(): Long = metrics.getParkedCount()
+    def polledCount(): Long = metrics.getPolledCount()
+    def blockingCount(): Long = metrics.getBlockingCount()
+    def respawnCount(): Long = metrics.getRespawnCount()
+
+    val localQueue: LocalQueueMetrics = localQueueMetrics(wstp.localQueues(index))
+    val timerHeap: TimerHeapMetrics = timerHeapMetrics(wstp.sleepers(index))
+    val poller: PollerMetrics = wstp.system.metrics(wstp.pollers(index))
+  }
+
+  private def localQueueMetrics(queue: LocalQueue): LocalQueueMetrics =
     new LocalQueueMetrics {
-      def index: Int = idx
       def fiberCount(): Int = queue.getFiberCount()
       def totalFiberCount(): Long = queue.getTotalFiberCount()
       def totalSpilloverCount(): Long = queue.getTotalSpilloverCount()
       def successfulStealAttemptCount(): Long = queue.getSuccessfulStealAttemptCount()
       def stolenFiberCount(): Long = queue.getStolenFiberCount()
-      def headIndex(): Int = queue.getHeadIndex()
-      def tailIndex(): Int = queue.getTailIndex()
-      def realHeadTag(): Int = queue.getRealHeadTag()
-      def stealHeadTag(): Int = queue.getStealHeadTag()
-      def tailTag(): Int = queue.getTailTag()
+    }
+
+  private def timerHeapMetrics(timerHeap: TimerHeap): TimerHeapMetrics =
+    new TimerHeapMetrics {
+      def nextTimerDue(): Option[Long] = timerHeap.nextTimerDue()
+      def timersOutstandingCount(): Int = timerHeap.outstandingTimers()
+      def totalTimersExecutedCount(): Long = timerHeap.totalTimersExecuted()
+      def totalTimersScheduledCount(): Long = timerHeap.totalTimersScheduled()
+      def totalTimersCanceledCount(): Long = timerHeap.totalTimersCanceled()
+      def packCount(): Long = timerHeap.packCount()
     }
 }

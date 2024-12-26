@@ -25,6 +25,7 @@ import cats.effect.unsafe.{
   SleepSystem,
   WorkStealingThreadPool
 }
+import cats.effect.unsafe.metrics.PollerMetrics
 import cats.syntax.all._
 
 import org.scalacheck.Prop.forAll
@@ -500,6 +501,7 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
           def makePoller() = new AtomicReference(List.empty[Either[Throwable, Unit] => Unit])
           def needsPoll(poller: Poller) = poller.get.nonEmpty
           def closePoller(poller: Poller) = ()
+          def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
 
           def interrupt(targetThread: Thread, targetPoller: Poller) =
             SleepSystem.interrupt(targetThread, SleepSystem.makePoller())

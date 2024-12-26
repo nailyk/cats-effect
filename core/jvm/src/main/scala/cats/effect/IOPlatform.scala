@@ -83,7 +83,7 @@ abstract private[effect] class IOPlatform[+A] extends Serializable { self: IO[A]
       case _: InterruptedException =>
         None
     } finally {
-      if (IOFiberConstants.ioLocalPropagation)
+      if (IOFiberConstants.TrackFiberContext)
         IOLocal.setThreadLocalState(fiber.getLocalState())
     }
   }

@@ -116,6 +116,14 @@ object IORuntime extends IORuntimeCompanionPlatform {
   def builder(): IORuntimeBuilder =
     IORuntimeBuilder()
 
+  /**
+   * Returns `true` if invoked within an executing `IOFiber`. If the property
+   * `cats.effect.trackFiberContext=true` then this method is always accurate. Otherwise, it is
+   * best-effort and may return `false` even when you are executing within an `IOFiber`.
+   */
+  @static def isUnderFiberContext(): Boolean =
+    IOFiber.currentIOFiber() ne null
+
   private[effect] def testRuntime(ec: ExecutionContext, scheduler: Scheduler): IORuntime = {
     val config = IORuntimeConfig()
     val metrics = IORuntimeMetrics(ec)

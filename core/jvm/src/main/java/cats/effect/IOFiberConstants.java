@@ -48,7 +48,7 @@ final class IOFiberConstants {
   static final byte AutoCedeR = 7;
   static final byte DoneR = 8;
 
-  static final boolean ioLocalPropagation = Boolean.getBoolean("cats.effect.ioLocalPropagation");
+  static final boolean TrackFiberContext = Boolean.getBoolean("cats.effect.trackFiberContext");
 
   static boolean isVirtualThread(final Thread thread) {
     try {

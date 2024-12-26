@@ -136,6 +136,48 @@ private[unsafe] abstract class IORuntimeCompanionPlatform { this: IORuntime.type
             i += 1
           }
 
+          threadPool.sleepers.zipWithIndex.foreach {
+            case (timerHeap, i) =>
+              try {
+                val timerHeapSamplerName = new ObjectName(
+                  s"cats.effect.unsafe.metrics:type=TimerHeap-$threadPoolId-$i"
+                )
+                val timerHeapSampler = new TimerHeapSampler(timerHeap)
+                mBeanServer.registerMBean(timerHeapSampler, timerHeapSamplerName)
+                registeredMBeans += timerHeapSamplerName
+              } catch {
+                case _: Throwable =>
+              }
+          }
+
+          threadPool.pollers.zipWithIndex.foreach {
+            case (poller, i) =>
+              try {
+                val pollerSamplerName = new ObjectName(
+                  s"cats.effect.unsafe.metrics:type=Poller-$threadPoolId-$i"
+                )
+                val pollerSampler = new PollerSampler(threadPool.system.metrics(poller))
+                mBeanServer.registerMBean(pollerSampler, pollerSamplerName)
+                registeredMBeans += pollerSamplerName
+              } catch {
+                case _: Throwable =>
+              }
+          }
+
+          threadPool.metrices.zipWithIndex.foreach {
+            case (thread, i) =>
+              try {
+                val workerThreadSamplerName = new ObjectName(
+                  s"cats.effect.unsafe.metrics:type=WorkerThread-$threadPoolId-$i"
+                )
+                val workerThreadSampler = new WorkerThreadSampler(thread)
+                mBeanServer.registerMBean(workerThreadSampler, workerThreadSamplerName)
+                registeredMBeans += workerThreadSamplerName
+              } catch {
+                case _: Throwable =>
+              }
+          }
+
           () => {
             if (mBeanServer ne null) {
               registeredMBeans.foreach { mbean =>

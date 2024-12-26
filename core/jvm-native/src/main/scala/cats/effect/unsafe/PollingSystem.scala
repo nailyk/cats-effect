@@ -17,6 +17,8 @@
 package cats.effect
 package unsafe
 
+import cats.effect.unsafe.metrics.PollerMetrics
+
 /**
  * Represents a stateful system for managing and interacting with a polling system. Polling
  * systems are typically used in scenarios such as handling multiplexed blocking I/O or other
@@ -101,6 +103,8 @@ abstract class PollingSystem {
    *   is the poller to be interrupted.
    */
   def interrupt(targetThread: Thread, targetPoller: Poller): Unit
+
+  def metrics(poller: Poller): PollerMetrics
 
 }
 

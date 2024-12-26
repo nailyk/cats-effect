@@ -938,7 +938,7 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
   )
   .jvmSettings(
     fork := true,
-    Test / javaOptions += "-Dcats.effect.ioLocalPropagation=true"
+    Test / javaOptions += "-Dcats.effect.trackFiberContext=true"
   )
   .nativeSettings(
     Compile / mainClass := Some("catseffect.examples.NativeRunner"),

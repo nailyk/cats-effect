@@ -1170,6 +1170,29 @@ class ResourceSpec extends BaseSpec with ScalaCheck with Discipline {
         }.void must completeAs(())
       }
     }
+
+    // TODO enable once `PureConc` finalizer bug is fixed.
+    "does not leak if canceled right after delayed acquire is canceled" in {
+      import cats.effect.kernel.testkit.pure._
+      type F[A] = PureConc[Throwable, A]
+      val F = Concurrent[F]
+      def go = for {
+        acquired <- F.ref(false)
+        released <- F.ref(false)
+        fiber <- Resource
+          .make(acquired.set(true))(_ => released.set(true))
+          .memoizedAcquire
+          .use(identity)
+          .start
+        _ <- F.cede.untilM_(acquired.get)
+        _ <- fiber.cancel
+        _ <- fiber.join
+        acquireRun <- acquired.get
+        releaseRun <- released.get
+      } yield acquireRun && releaseRun
+
+      run(go) == Outcome.succeeded(Some(true))
+    }.pendingUntilFixed
   }
 
   "attempt" >> {

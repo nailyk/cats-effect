@@ -17,6 +17,8 @@
 package cats.effect
 package unsafe
 
+import cats.effect.unsafe.metrics.PollerMetrics
+
 object SleepSystem extends PollingSystem {
 
   type Api = AnyRef
@@ -39,5 +41,7 @@ object SleepSystem extends PollingSystem {
   def needsPoll(poller: Poller): Boolean = false
 
   def interrupt(targetThread: Thread, targetPoller: Poller): Unit = ()
+
+  def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
 
 }

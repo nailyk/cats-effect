@@ -271,7 +271,7 @@ object IOLocal {
   /**
    * `true` if IOLocal-Threadlocal propagation is enabled
    */
-  def isPropagating: Boolean = IOFiberConstants.ioLocalPropagation
+  def isPropagating: Boolean = IOFiberConstants.TrackFiberContext
 
   private[effect] def getThreadLocalState() = {
     val fiber = IOFiber.currentIOFiber()

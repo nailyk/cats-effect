@@ -18,6 +18,7 @@ package cats.effect
 package unsafe
 
 import cats.effect.std.Mutex
+import cats.effect.unsafe.metrics.PollerMetrics
 import cats.syntax.all._
 
 import org.typelevel.scalaccompat.annotation._
@@ -67,6 +68,8 @@ object EpollSystem extends PollingSystem {
   def interrupt(targetThread: Thread, targetPoller: Poller): Unit = {
     targetPoller.interrupt()
   }
+
+  def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
 
   private final class FileDescriptorPollerImpl private[EpollSystem] (
       ctx: PollingContext[Poller])

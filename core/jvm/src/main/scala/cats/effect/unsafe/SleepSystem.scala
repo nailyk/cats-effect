@@ -17,6 +17,8 @@
 package cats.effect
 package unsafe
 
+import cats.effect.unsafe.metrics.PollerMetrics
+
 import java.util.concurrent.locks.LockSupport
 
 object SleepSystem extends PollingSystem {
@@ -46,5 +48,7 @@ object SleepSystem extends PollingSystem {
 
   def interrupt(targetThread: Thread, targetPoller: Poller): Unit =
     LockSupport.unpark(targetThread)
+
+  def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
 
 }

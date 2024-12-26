@@ -61,7 +61,7 @@ private final class TimerHeap extends AtomicInteger {
 
   // And this is how many of those externally canceled nodes were already removed.
   // We track this separately so we can increment on owner thread without overhead of the atomic.
-  private[this] var removedCanceledCounter = 0
+  private[this] var removedCanceledCounter: Int = 0
 
   // The index 0 is not used; the root is at index 1.
   // This is standard practice in binary heaps, to simplify arithmetics.
@@ -69,6 +69,14 @@ private final class TimerHeap extends AtomicInteger {
   private[this] var size: Int = 0
 
   private[this] val RightUnit = Right(())
+
+  // metrics
+  private[this] var totalScheduled: Long = 0L
+  private[this] var totalExecuted: Long = 0L
+  private[this] var totalCanceled: Long = 0L
+  private[this] var totalPacks: Long = 0L
+
+  private def incrementTotalCanceled() = totalCanceled += 1
 
   /**
    * only called by owner thread
@@ -81,8 +89,12 @@ private final class TimerHeap extends AtomicInteger {
       if (root.isDeleted()) { // DOA. Remove it and loop.
 
         removeAt(1)
-        if (root.isCanceled())
+        if (root.isCanceled()) {
           removedCanceledCounter += 1
+          totalCanceled += 1
+        } else {
+          totalExecuted += 1
+        }
 
         peekFirstTriggerTime() // loop
 
@@ -133,11 +145,20 @@ private final class TimerHeap extends AtomicInteger {
         heap(size) = null
         size -= 1
 
-        if (root.isCanceled())
+        if (root.isCanceled()) {
           removedCanceledCounter += 1
+          totalCanceled += 1
+        } else {
+          totalExecuted += 1
+        }
 
         val back = root.getAndClear()
-        if (rootExpired && (back ne null)) back else loop()
+        if (rootExpired && (back ne null)) {
+          totalExecuted += 1
+          back
+        } else {
+          loop()
+        }
       } else null
     } else null
 
@@ -178,34 +199,45 @@ private final class TimerHeap extends AtomicInteger {
       delay: Long,
       callback: Right[Nothing, Unit] => Unit,
       out: Array[Right[Nothing, Unit] => Unit]
-  ): Function0[Unit] with Runnable = if (size > 0) {
-    val heap = this.heap // local copy
-    val triggerTime = computeTriggerTime(now, delay)
+  ): Function0[Unit] with Runnable = {
+    totalScheduled += 1
 
-    val root = heap(1)
-    val rootDeleted = root.isDeleted()
-    val rootExpired = !rootDeleted && isExpired(root, now)
-    if (rootDeleted || rootExpired) { // see if we can just replace the root
-      root.index = -1
-      if (root.isCanceled()) removedCanceledCounter += 1
-      if (rootExpired) out(0) = root.getAndClear()
-      val node = new Node(triggerTime, callback, 1)
-      heap(1) = node
-      fixDown(1)
-      node
-    } else { // insert at the end
-      val heap = growIfNeeded() // new heap array if it grew
+    if (size > 0) {
+      val heap = this.heap // local copy
+      val triggerTime = computeTriggerTime(now, delay)
+
+      val root = heap(1)
+      val rootDeleted = root.isDeleted()
+      val rootExpired = !rootDeleted && isExpired(root, now)
+      if (rootDeleted || rootExpired) { // see if we can just replace the root
+        root.index = -1
+        if (root.isCanceled()) {
+          removedCanceledCounter += 1
+          totalCanceled += 1
+        } else {
+          totalExecuted += 1
+          if (rootExpired) {
+            out(0) = root.getAndClear()
+          }
+        }
+        val node = new Node(triggerTime, callback, 1)
+        heap(1) = node
+        fixDown(1)
+        node
+      } else { // insert at the end
+        val heap = growIfNeeded() // new heap array if it grew
+        size += 1
+        val node = new Node(triggerTime, callback, size)
+        heap(size) = node
+        fixUp(size)
+        node
+      }
+    } else {
+      val node = new Node(now + delay, callback, 1)
+      this.heap(1) = node
       size += 1
-      val node = new Node(triggerTime, callback, size)
-      heap(size) = node
-      fixUp(size)
       node
     }
-  } else {
-    val node = new Node(now + delay, callback, 1)
-    this.heap(1) = node
-    size += 1
-    node
   }
 
   /**
@@ -241,7 +273,34 @@ private final class TimerHeap extends AtomicInteger {
     }
   }
 
+  def totalTimersScheduled(): Long = totalScheduled
+
+  def totalTimersExecuted(): Long = totalExecuted
+
+  def totalTimersCanceled(): Long = totalCanceled
+
+  def packCount(): Long = totalPacks
+
+  /**
+   * Returns the current number of the outstanding timers.
+   */
+  def outstandingTimers(): Int = size
+
+  /**
+   * Returns the next due to fire.
+   */
+  def nextTimerDue(): Option[Long] = {
+    val root = heap(1)
+    if (root ne null) {
+      val now = System.nanoTime()
+      val when = root.triggerTime - now
+      Some(when)
+    } else None
+  }
+
   private[this] def pack(removeCount: Int): Unit = {
+    totalPacks += 1
+
     val heap = this.heap // local copy
 
     // We track how many canceled nodes we removed so we can try to exit the loop early.
@@ -254,6 +313,7 @@ private final class TimerHeap extends AtomicInteger {
       if (heap(i).isCanceled()) {
         removeAt(i)
         r += 1
+        totalCanceled += 1
         // Don't increment i, the new i may be canceled too.
       } else {
         i += 1
@@ -460,8 +520,10 @@ private final class TimerHeap extends AtomicInteger {
         val worker = thread.asInstanceOf[WorkerThread[_]]
         val heap = TimerHeap.this
         if (worker.ownsTimers(heap)) {
-          // remove only if we are still in the heap
-          if (index >= 0) heap.removeAt(index)
+          if (index >= 0) { // remove only if we are still in the heap
+            heap.removeAt(index)
+          }
+          heap.incrementTotalCanceled()
         } else { // otherwise this heap will need packing
           // it is okay to increment more than once if invoked multiple times
           // but it will undermine the packIfNeeded short-circuit optimization

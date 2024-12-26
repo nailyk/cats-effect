@@ -30,6 +30,8 @@ import java.lang.Long.MIN_VALUE
 import java.util.concurrent.{LinkedTransferQueue, ThreadLocalRandom}
 import java.util.concurrent.atomic.AtomicBoolean
 
+import WorkerThread.Metrics
+
 /**
  * Implementation of the worker thread at the heart of the [[WorkStealingThreadPool]].
  *
@@ -55,6 +57,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
     private[this] var sleepers: TimerHeap,
     private[this] val system: PollingSystem.WithPoller[P],
     private[this] var _poller: P,
+    private[this] var metrics: Metrics,
     // Reference to the `WorkStealingThreadPool` in which this thread operates.
     pool: WorkStealingThreadPool[P])
     extends Thread
@@ -115,6 +118,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
     def run() = ()
   }
 
+  // Identifies blocked worker, used for ranking cached threads
   val nameIndex: Int = pool.blockedWorkerThreadNamingIndex.getAndIncrement()
 
   // Constructor code.
@@ -124,7 +128,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
 
     val prefix = pool.threadPrefix
     // Set the name of this thread.
-    setName(s"$prefix-$nameIndex")
+    setName(s"$prefix-$idx")
   }
 
   private[unsafe] def poller(): P = _poller
@@ -379,6 +383,8 @@ private[effect] final class WorkerThread[P <: AnyRef](
 
     // returns next state after parking
     def park(): Int = {
+      metrics.incrementParkedCount()
+
       val tt = sleepers.peekFirstTriggerTime()
       val nextState = if (tt == MIN_VALUE) { // no sleepers
         if (parkLoop()) {
@@ -400,8 +406,6 @@ private[effect] final class WorkerThread[P <: AnyRef](
         }
       }
 
-      now = System.nanoTime()
-
       if (nextState != 4) {
         // after being unparked, we re-check sleepers;
         // if we find an already expired one, we go
@@ -422,7 +426,11 @@ private[effect] final class WorkerThread[P <: AnyRef](
     def parkLoop(): Boolean = {
       while (!done.get()) {
         // Park the thread until further notice.
+        val start = System.nanoTime()
+        metrics.incrementPolledCount()
         val polled = system.poll(_poller, -1, reportFailure)
+        now = System.nanoTime() // update now
+        metrics.addIdleTime(now - start)
 
         // the only way we can be interrupted here is if it happened *externally* (probably sbt)
         if (isInterrupted()) {
@@ -454,15 +462,18 @@ private[effect] final class WorkerThread[P <: AnyRef](
           val nanos = triggerTime - now
 
           if (nanos > 0L) {
+            val start = now
+            metrics.incrementPolledCount()
             val polled = system.poll(_poller, nanos, reportFailure)
+            // we already parked and time passed, so update time again
+            // it doesn't matter if we timed out or were awakened, the update is free-ish
+            now = System.nanoTime()
+            metrics.addIdleTime(now - start)
 
             if (isInterrupted()) {
               pool.shutdown()
               false // we know `done` is `true`
             } else {
-              // we already parked and time passed, so update time again
-              // it doesn't matter if we timed out or were awakened, the update is free-ish
-              now = System.nanoTime()
               if (parked.get()) {
                 // we were either awakened spuriously, or we timed out or polled an event
                 if (polled || (triggerTime - now <= 0)) {
@@ -505,6 +516,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
         fiberBag = null
         _active = null
         _poller = null.asInstanceOf[P]
+        metrics = null
 
         // Add this thread to the cached threads data structure, to be picked up
         // by another thread in the future.
@@ -549,14 +561,10 @@ private[effect] final class WorkerThread[P <: AnyRef](
           if (pool.blockedThreadDetectionEnabled) {
             // TODO prefetch pool.workerThread or Thread.State.BLOCKED ?
             // TODO check that branch elimination makes it free when off
-            var otherIdx = random.nextInt(pool.getWorkerThreads.length)
-            if (otherIdx == idx) {
-              otherIdx =
-                (idx + Math.max(1, random.nextInt(pool.getWorkerThreads.length - 1))) % pool
-                  .getWorkerThreads
-                  .length
-            }
-            val thread = pool.getWorkerThreads(otherIdx)
+            val idx = index
+            val threadCount = pool.getWorkerThreadCount()
+            val otherIdx = (idx + random.nextInt(threadCount - 1)) % threadCount
+            val thread = pool.getWorkerThread(otherIdx)
             val state = thread.getState()
             val parked = thread.parked
 
@@ -573,6 +581,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
           // Clean up any externally canceled timers
           sleepers.packIfNeeded()
           // give the polling system a chance to discover events
+          metrics.incrementPolledCount()
           system.poll(_poller, 0, reportFailure)
 
           // Obtain a fiber or batch of fibers from the external queue.
@@ -863,6 +872,8 @@ private[effect] final class WorkerThread[P <: AnyRef](
       // This `WorkerThread` has already been prepared for blocking.
       // There is no need to spawn another `WorkerThread`.
     } else {
+      metrics.incrementBlockingCount()
+
       // Spawn a new `WorkerThread` to take the place of this thread, as the
       // current thread prepares to execute a blocking action.
 
@@ -898,6 +909,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
         // a worker thread about to run blocking code is **not** parked, and
         // therefore, another worker thread would not even see it as a candidate
         // for unparking.
+        metrics.incrementRespawnCount()
         val idx = index
         val clone =
           new WorkerThread(
@@ -909,6 +921,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
             sleepers,
             system,
             _poller,
+            metrics,
             pool)
         // Make sure the clone gets our old name:
         val clonePrefix = pool.threadPrefix
@@ -939,6 +952,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
     parked = pool.parkedSignals(newIdx)
     fiberBag = pool.fiberBags(newIdx)
     _poller = pool.pollers(newIdx)
+    metrics = pool.metrices(newIdx)
 
     // Reset the name of the thread to the regular prefix.
     val prefix = pool.threadPrefix
@@ -958,4 +972,30 @@ private[effect] final class WorkerThread[P <: AnyRef](
    */
   def getSuspendedFiberCount(): Int =
     fiberBag.size
+}
+
+private[effect] object WorkerThread {
+
+  final class Metrics {
+    private[this] var idleTime: Long = 0
+    def getIdleTime(): Long = idleTime
+    def addIdleTime(x: Long): Unit = idleTime += x
+
+    private[this] var parkedCount: Long = 0
+    def getParkedCount(): Long = parkedCount
+    def incrementParkedCount(): Unit = parkedCount += 1
+
+    private[this] var polledCount: Long = 0
+    def getPolledCount(): Long = polledCount
+    def incrementPolledCount(): Unit = polledCount += 1
+
+    private[this] var blockingCount: Long = 0
+    def getBlockingCount(): Long = blockingCount
+    def incrementBlockingCount(): Unit = blockingCount += 1
+
+    private[this] var respawnCount: Long = 0
+    def getRespawnCount(): Long = respawnCount
+    def incrementRespawnCount(): Unit = respawnCount += 1
+  }
+
 }
