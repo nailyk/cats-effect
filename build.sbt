@@ -946,6 +946,7 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
       c.withSourceLevelDebuggingConfig(_.enableAll) // enable generation of debug information
         .withOptimize(false)  // disable Scala Native optimizer
         .withMode(Mode.debug) // compile using LLVM without optimizations
+        .withCompileOptions(c.compileOptions ++ Seq("-gdwarf-4"))
     },
   )
 
