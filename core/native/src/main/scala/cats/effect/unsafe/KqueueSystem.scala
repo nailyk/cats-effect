@@ -106,7 +106,7 @@ object KqueueSystem extends PollingSystem {
               IO.async[Unit] { kqcb =>
                 IO.async_[Option[IO[Unit]]] { cb =>
                   ctx.accessPoller { kqueue =>
-                    kqueue.evSet(fd, EVFILT_READ, EV_ADD.toUShort, kqcb)
+                    kqueue.evSet(fd, EVFILT_READ, (EV_ADD | EV_ONESHOT).toUShort, 0.toUInt, kqcb)
                     cb(Right(Some(IO(kqueue.removeCallback(fd, EVFILT_READ)))))
                   }
                 }
@@ -126,7 +126,7 @@ object KqueueSystem extends PollingSystem {
               IO.async[Unit] { kqcb =>
                 IO.async_[Option[IO[Unit]]] { cb =>
                   ctx.accessPoller { kqueue =>
-                    kqueue.evSet(fd, EVFILT_WRITE, EV_ADD.toUShort, kqcb)
+                    kqueue.evSet(fd, EVFILT_WRITE, (EV_ADD | EV_ONESHOT).toUShort, 0.toUInt, kqcb)
                     cb(Right(Some(IO(kqueue.removeCallback(fd, EVFILT_WRITE)))))
                   }
                 }
@@ -139,47 +139,36 @@ object KqueueSystem extends PollingSystem {
 
   final class Poller private[KqueueSystem] (kqfd: Int) {
 
-    // the head of the array is always EVFILT_USER
-    private[this] val changelistArray = new Array[Byte](sizeof[kevent64_s].toInt * MaxEvents)
-    @inline private[this] def changelist =
-      changelistArray.atUnsafe(1).asInstanceOf[Ptr[kevent64_s]]
-    private[this] var changeCount = 1
-
-    {
-      val intEvent = changelistArray.atUnsafe(0).asInstanceOf[Ptr[kevent64_s]]
-      intEvent.ident = 0.toUSize
-      intEvent.filter = EVFILT_USER
-      intEvent.flags = (EV_ADD | EV_ONESHOT).toUShort
-    }
+    // register the current kqueue for the interrupt signal (EV_CLEAR means it stays in queue)
+    evSet(0, EVFILT_USER, (EV_ADD | EV_CLEAR).toUShort, 0.toUInt, null)
 
     private[this] val callbacks = new LongMap[Either[Throwable, Unit] => Unit]()
 
-    private[KqueueSystem] def interrupt(): Unit = {
-      val event = stackalloc[kevent64_s]
-
-      event.ident = 0.toUSize
-      event.filter = EVFILT_USER
-      event.fflags = NOTE_TRIGGER.toUInt
-
-      kevent64(kqfd, event, 1, null, 0, KEVENT_FLAG_IMMEDIATE.toUInt, null)
-      ()
-    }
+    private[KqueueSystem] def interrupt(): Unit =
+      evSet(0, EVFILT_USER, 0.toUShort, NOTE_TRIGGER.toUInt, null)
 
     private[KqueueSystem] def evSet(
         ident: Int,
         filter: Short,
         flags: CUnsignedShort,
+        fflags: CUnsignedInt,
         cb: Either[Throwable, Unit] => Unit
     ): Unit = {
-      val change = changelist + changeCount.toLong
+      val event = stackalloc[kevent64_s]
 
-      change.ident = ident.toUSize
-      change.filter = filter
-      change.flags = (flags.toInt | EV_ONESHOT).toUShort
+      event.ident = ident.toUSize
+      event.filter = filter
+      event.flags = flags.toInt.toUShort
+      event.fflags = fflags
 
-      callbacks.update(encodeKevent(ident, filter), cb)
+      if (cb != null) {
+        callbacks.update(encodeKevent(ident, filter), cb)
+      }
 
-      changeCount += 1
+      val result = kevent64(kqfd, event, 1, null, 0, KEVENT_FLAG_IMMEDIATE.toUInt, null)
+      if (result < 0) {
+        throw new IOException(fromCString(strerror(errno)))
+      }
     }
 
     private[KqueueSystem] def removeCallback(ident: Int, filter: Short): Unit = {
@@ -197,13 +186,12 @@ object KqueueSystem extends PollingSystem {
       var polled = false
 
       @tailrec
-      def processEvents(timeout: Ptr[timespec], changeCount: Int, flags: Int): Unit = {
-
+      def processEvents(timeout: Ptr[timespec], flags: Int): Unit = {
         val triggeredEvents =
           kevent64(
             kqfd,
-            changelist,
-            changeCount,
+            null,
+            0,
             eventlist,
             MaxEvents,
             flags.toUInt,
@@ -240,7 +228,7 @@ object KqueueSystem extends PollingSystem {
         }
 
         if (triggeredEvents >= MaxEvents)
-          processEvents(null, 0, KEVENT_FLAG_IMMEDIATE) // drain the ready list
+          processEvents(null, KEVENT_FLAG_IMMEDIATE) // drain the ready list
         else
           ()
       }
@@ -256,13 +244,11 @@ object KqueueSystem extends PollingSystem {
 
       val flags = if (timeout == 0) KEVENT_FLAG_IMMEDIATE else KEVENT_FLAG_NONE
 
-      processEvents(timeoutSpec, changeCount, flags)
-      changeCount = 1
-
+      processEvents(timeoutSpec, flags)
       polled
     }
 
-    def needsPoll(): Boolean = changeCount > 1 || callbacks.nonEmpty
+    def needsPoll(): Boolean = callbacks.nonEmpty
   }
 
   @nowarn212
@@ -279,6 +265,7 @@ object KqueueSystem extends PollingSystem {
 
     final val EV_ADD = 0x0001
     final val EV_DELETE = 0x0002
+    final val EV_ENABLE = 0x0004
     final val EV_ONESHOT = 0x0010
     final val EV_CLEAR = 0x0020
     final val EV_ERROR = 0x4000
