@@ -103,7 +103,7 @@ class RefSpec extends BaseSpec with DetectPlatform { outer =>
       op must completeAs(true)
     }
 
-    if (!isJS && !isNative) // concurrent modification impossible
+    if (!isJS) // concurrent modification impossible
       "tryUpdate - should fail to update if modification has occurred" in ticked {
         implicit ticker =>
           val updateRefUnsafely: Ref[IO, Int] => Unit = { (ref: Ref[IO, Int]) =>
