@@ -22,7 +22,7 @@ import cats.syntax.all._
 
 import scala.concurrent.duration.DurationInt
 
-class DispatcherParallelSpec extends BaseSpec {
+class DispatcherParallelSpec extends BaseSpec with DetectPlatform {
 
   "async dispatcher" should {
     "run multiple IOs in parallel with blocking threads" in real {
@@ -45,26 +45,31 @@ class DispatcherParallelSpec extends BaseSpec {
       } yield ok
     }
 
-    "propagate Java thread interruption in unsafeRunSync" in real {
-      Dispatcher.parallel[IO](await = true).use { dispatcher =>
-        for {
-          pre <- IO.deferred[Unit]
-          canceled <- IO.deferred[Unit]
+    if (isNative) {
+      "propagate thread interruption in unsafeRunSync" in
+        skipped("waiting for stubs for java.nio.channels.ClosedByInterruptException")
+    } else {
+      "propagate thread interruption in unsafeRunSync" in real {
+        Dispatcher.parallel[IO](await = true).use { dispatcher =>
+          for {
+            pre <- IO.deferred[Unit]
+            canceled <- IO.deferred[Unit]
 
-          io = (pre.complete(()) *> IO.never).onCancel(canceled.complete(()).void)
+            io = (pre.complete(()) *> IO.never).onCancel(canceled.complete(()).void)
 
-          f <- IO.interruptible {
-            try dispatcher.unsafeRunSync(io)
-            catch { case _: InterruptedException => }
-          }.start
+            f <- IO.interruptible {
+              try dispatcher.unsafeRunSync(io)
+              catch { case _: InterruptedException => }
+            }.start
 
-          _ <- pre.get
-          _ <- f.cancel
+            _ <- pre.get
+            _ <- f.cancel
 
-          _ <- canceled
-            .get
-            .timeoutTo(1.second, IO.raiseError(new Exception("io was not canceled")))
-        } yield ok
+            _ <- canceled
+              .get
+              .timeoutTo(1.second, IO.raiseError(new Exception("io was not canceled")))
+          } yield ok
+        }
       }
     }
   }
