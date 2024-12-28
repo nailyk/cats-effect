@@ -29,11 +29,11 @@ import scala.concurrent.duration._
 import java.util.concurrent.{ExecutorService, Executors, ThreadFactory, TimeUnit}
 import java.util.concurrent.atomic.AtomicLong
 
-class DeferredJVMParallelism1Tests extends BaseDeferredJVMTests(1)
-class DeferredJVMParallelism2Tests extends BaseDeferredJVMTests(2)
-class DeferredJVMParallelism4Tests extends BaseDeferredJVMTests(4)
+class DeferredParallelism1Spec extends BaseDeferredParallelismSpec(1)
+class DeferredParallelism2Spec extends BaseDeferredParallelismSpec(2)
+class DeferredParallelism4Spec extends BaseDeferredParallelismSpec(4)
 
-abstract class BaseDeferredJVMTests(parallelism: Int)
+abstract class BaseDeferredParallelismSpec(parallelism: Int)
     extends Specification
     with BeforeAfterEach {
   var service: ExecutorService = _
