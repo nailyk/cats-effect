@@ -22,7 +22,7 @@ import cats.syntax.all._
 
 import scala.concurrent.duration.DurationInt
 
-class DispatcherJVMSpec extends BaseSpec {
+class DispatcherParallelSpec extends BaseSpec {
 
   "async dispatcher" should {
     "run multiple IOs in parallel with blocking threads" in real {
