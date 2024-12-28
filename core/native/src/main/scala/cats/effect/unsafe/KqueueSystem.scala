@@ -139,13 +139,35 @@ object KqueueSystem extends PollingSystem {
 
   final class Poller private[KqueueSystem] (kqfd: Int) {
 
+    // this exists to buffer reduce our syscall burden by up to 1/64
+    // the buffer accumulates and is passed to kevent64 when we do our periodic poll
+    private[this] val changelistBuffer = new Array[Byte](sizeof[kevent64_s].toInt * MaxEvents)
+    @inline private[this] def changelist: Ptr[kevent64_s] =
+      changelistBuffer.atUnsafe(0).asInstanceOf[Ptr[kevent64_s]]
+
+    private[this] var nchanges = 0
+
     // register the current kqueue for the interrupt signal (EV_CLEAR means it stays in queue)
     evSet(0, EVFILT_USER, (EV_ADD | EV_CLEAR).toUShort, 0.toUInt, null)
 
     private[this] val callbacks = new LongMap[Either[Throwable, Unit] => Unit]()
 
-    private[KqueueSystem] def interrupt(): Unit =
-      evSet(0, EVFILT_USER, 0.toUShort, NOTE_TRIGGER.toUInt, null)
+    private[KqueueSystem] def interrupt(): Unit = {
+      val event = stackalloc[kevent64_s]
+
+      event.ident = 0.toUInt
+      event.filter = EVFILT_USER
+      event.flags = 0.toUShort
+      event.fflags = NOTE_TRIGGER.toUInt
+
+      // we can't use the consolidated event list here since we're not on the owning thread
+      // so instead we eat the syscall
+      val errno = kevent64(kqfd, event, 1, null, 0, KEVENT_FLAG_IMMEDIATE.toUInt, null)
+
+      if (errno < 0) {
+        throw new IOException(fromCString(strerror(errno)))
+      }
+    }
 
     private[KqueueSystem] def evSet(
         ident: Int,
@@ -154,20 +176,17 @@ object KqueueSystem extends PollingSystem {
         fflags: CUnsignedInt,
         cb: Either[Throwable, Unit] => Unit
     ): Unit = {
-      val event = stackalloc[kevent64_s]
+      val event = changelist + nchanges.toLong
 
       event.ident = ident.toUSize
       event.filter = filter
       event.flags = flags.toInt.toUShort
       event.fflags = fflags
 
+      nchanges += 1
+
       if (cb != null) {
         callbacks.update(encodeKevent(ident, filter), cb)
-      }
-
-      val result = kevent64(kqfd, event, 1, null, 0, KEVENT_FLAG_IMMEDIATE.toUInt, null)
-      if (result < 0) {
-        throw new IOException(fromCString(strerror(errno)))
       }
     }
 
@@ -190,13 +209,12 @@ object KqueueSystem extends PollingSystem {
         val triggeredEvents =
           kevent64(
             kqfd,
-            null,
-            0,
+            changelist,
+            nchanges,
             eventlist,
             MaxEvents,
             flags.toUInt,
-            timeout
-          )
+            timeout)
 
         // System.err.println(s"got some events: $triggeredEvents")
         if (triggeredEvents >= 0) {
@@ -245,6 +263,8 @@ object KqueueSystem extends PollingSystem {
       val flags = if (timeout == 0) KEVENT_FLAG_IMMEDIATE else KEVENT_FLAG_NONE
 
       processEvents(timeoutSpec, flags)
+      nchanges = 0
+
       polled
     }
 
