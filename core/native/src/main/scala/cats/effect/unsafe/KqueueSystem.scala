@@ -276,6 +276,7 @@ object KqueueSystem extends PollingSystem {
 
     def kqueue(): CInt = extern
 
+    @blocking
     def kevent64(
         kq: CInt,
         changelist: Ptr[kevent64_s],
