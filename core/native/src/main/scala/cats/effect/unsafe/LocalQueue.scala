@@ -49,6 +49,11 @@ private class Head {
    */
   @volatile
   private[this] var head: Int = 0
+
+  {
+    // prevent unused warnings
+    head = 0
+  }
 }
 
 private object Head {
@@ -78,6 +83,11 @@ private class Tail extends Head {
 
   @volatile
   private[this] var tailPublisher: Int = 0
+
+  {
+    // prevent unused warnings
+    tailPublisher = 0
+  }
 }
 
 private object Tail {

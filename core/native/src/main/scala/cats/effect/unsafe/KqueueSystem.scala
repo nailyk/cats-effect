@@ -152,7 +152,7 @@ object KqueueSystem extends PollingSystem {
     private[this] val callbacks = new TrieMap[Int, Either[Throwable, Unit] => Unit]()
 
     private[KqueueSystem] def interrupt(): Unit = {
-      val event = stackalloc[kevent64_s]
+      val event = stackalloc[kevent64_s]()
 
       event.ident = 0.toUInt
       event.filter = EVFILT_USER
