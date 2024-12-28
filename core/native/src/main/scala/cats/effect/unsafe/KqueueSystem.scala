@@ -24,7 +24,7 @@ import cats.syntax.all._
 import org.typelevel.scalaccompat.annotation._
 
 import scala.annotation.tailrec
-import scala.collection.mutable.LongMap
+import scala.collection.concurrent.TrieMap
 // import scala.scalanative.libc.errno._
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.string._
@@ -86,8 +86,8 @@ object KqueueSystem extends PollingSystem {
   }
 
   // A kevent is identified by the (ident, filter) pair; there may only be one unique kevent per kqueue
-  @inline private def encodeKevent(ident: Int, filter: Short): Long =
-    (filter.toLong << 32) | ident.toLong
+  @inline private def encodeKevent(ident: Int, filter: Short): Int =
+    (filter << 32) | ident
 
   private final class PollHandle(
       ctx: PollingContext[Poller],
@@ -150,7 +150,7 @@ object KqueueSystem extends PollingSystem {
     // register the current kqueue for the interrupt signal (EV_CLEAR means it stays in queue)
     evSet(0, EVFILT_USER, (EV_ADD | EV_CLEAR).toUShort, 0.toUInt, null)
 
-    private[this] val callbacks = new LongMap[Either[Throwable, Unit] => Unit]()
+    private[this] val callbacks = new TrieMap[Int, Either[Throwable, Unit] => Unit]()
 
     private[KqueueSystem] def interrupt(): Unit = {
       val event = stackalloc[kevent64_s]
@@ -224,14 +224,14 @@ object KqueueSystem extends PollingSystem {
           var event = eventlist
           while (i < triggeredEvents) {
             val kevent = encodeKevent(event.ident.toInt, event.filter)
-            val cb = callbacks.getOrNull(kevent)
+            val cb = callbacks.get(kevent)
             callbacks -= kevent
 
             // System.err.println(s"processing ${event.filter}")
 
             // we just ignore the interrupt, since its whole purpose is to awaken the poller
-            if (event.filter != EVFILT_USER && cb != null) {
-              cb(
+            if (event.filter != EVFILT_USER && cb.isDefined) {
+              cb.get(
                 if ((event.flags.toLong & EV_ERROR) != 0)
                   Left(new IOException(fromCString(strerror(event.data.toInt))))
                 else Either.unit
