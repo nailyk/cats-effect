@@ -25,7 +25,6 @@ import org.typelevel.scalaccompat.annotation._
 
 import scala.annotation.tailrec
 import scala.scalanative.annotation.alwaysinline
-// import scala.scalanative.libc.errno._
 import scala.scalanative.meta.LinktimeInfo
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.string._

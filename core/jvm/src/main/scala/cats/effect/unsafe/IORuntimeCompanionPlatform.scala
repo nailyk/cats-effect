@@ -24,7 +24,7 @@ import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
 
 import java.lang.management.ManagementFactory
-import java.util.concurrent.{Executors, ScheduledThreadPoolExecutor}
+import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
 
 import javax.management.ObjectName

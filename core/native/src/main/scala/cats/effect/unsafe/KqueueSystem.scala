@@ -25,7 +25,6 @@ import org.typelevel.scalaccompat.annotation._
 
 import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
-// import scala.scalanative.libc.errno._
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.string._
 import scala.scalanative.posix.time._

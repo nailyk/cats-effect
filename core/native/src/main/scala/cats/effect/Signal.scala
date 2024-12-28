@@ -18,7 +18,6 @@ package cats.effect
 
 import cats.syntax.all._
 
-// import scala.scalanative.libc.errno._
 import scala.scalanative.meta.LinktimeInfo._
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.fcntl._
