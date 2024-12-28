@@ -38,8 +38,6 @@ import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration.{Duration, FiniteDuration}
 import scala.util.control.NonFatal
 
-import java.time.Instant
-import java.time.temporal.ChronoField
 import java.util.Comparator
 import java.util.concurrent.{ConcurrentSkipListSet, ThreadLocalRandom}
 import java.util.concurrent.atomic.{
@@ -78,7 +76,8 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
     reportFailure0: Throwable => Unit
 ) extends ExecutionContextExecutor
     with Scheduler
-    with UnsealedPollingContext[P] {
+    with UnsealedPollingContext[P]
+    with WorkStealingThreadPoolPlatform[P] {
 
   import TracingConstants._
   import WorkStealingThreadPoolConstants._
@@ -627,11 +626,6 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
   }
 
   override def nowMillis(): Long = System.currentTimeMillis()
-
-  override def nowMicros(): Long = {
-    val now = Instant.now()
-    now.getEpochSecond() * 1000000 + now.getLong(ChronoField.MICRO_OF_SECOND)
-  }
 
   /**
    * Tries to call the current worker's `sleep`, but falls back to `sleepExternal` if needed.
