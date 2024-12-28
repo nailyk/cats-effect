@@ -25,7 +25,8 @@ import scala.concurrent.ExecutionContext
 
 import java.util.concurrent.{CompletableFuture, CountDownLatch, ExecutorService, Executors}
 
-trait IOPlatformSpecification extends DetectPlatform with IOConcurrencySpecification { self: BaseSpec with ScalaCheck =>
+trait IOPlatformSpecification extends DetectPlatform with IOConcurrencySpecification {
+  self: BaseSpec with ScalaCheck =>
 
   def platformSpecs = {
     "platform" should {

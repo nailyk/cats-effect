@@ -24,7 +24,8 @@ import scala.scalanative.posix.time._
 import scala.scalanative.posix.timeOps._
 import scala.scalanative.unsafe._
 
-trait WorkStealingThreadPoolPlatform[P <: AnyRef] extends Scheduler { this: WorkStealingThreadPool[P] =>
+trait WorkStealingThreadPoolPlatform[P <: AnyRef] extends Scheduler {
+  this: WorkStealingThreadPool[P] =>
 
   // TODO cargo culted from EventLoopExecutorScheduler.scala
   override def nowMicros(): Long =

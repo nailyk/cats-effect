@@ -257,7 +257,7 @@ trait IOApp {
           IORuntime.createWorkStealingComputeThreadPool(
             threads = computeWorkerThreadCount,
             reportFailure = t => reportFailure(t).unsafeRunAndForgetWithoutCallback()(runtime),
-            blockedThreadDetectionEnabled = false,    // TODO
+            blockedThreadDetectionEnabled = false, // TODO
             pollingSystem = pollingSystem
           )
 

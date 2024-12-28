@@ -50,12 +50,7 @@ private[unsafe] abstract class IORuntimeCompanionPlatform { this: IORuntime.type
         reportFailure
       )
 
-    (
-      threadPool,
-      pollingSystem.makeApi(threadPool),
-      { () =>
-        threadPool.shutdown()
-      })
+    (threadPool, pollingSystem.makeApi(threadPool), { () => threadPool.shutdown() })
   }
 
   def createDefaultScheduler(threadPrefix: String = "io-scheduler"): (Scheduler, () => Unit) =

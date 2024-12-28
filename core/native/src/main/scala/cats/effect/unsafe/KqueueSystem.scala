@@ -105,7 +105,8 @@ object KqueueSystem extends PollingSystem {
               IO.async[Unit] { kqcb =>
                 IO.async_[Option[IO[Unit]]] { cb =>
                   ctx.accessPoller { kqueue =>
-                    kqueue.evSet(fd, EVFILT_READ, (EV_ADD | EV_ONESHOT).toUShort, 0.toUInt, kqcb)
+                    kqueue
+                      .evSet(fd, EVFILT_READ, (EV_ADD | EV_ONESHOT).toUShort, 0.toUInt, kqcb)
                     cb(Right(Some(IO(kqueue.removeCallback(fd, EVFILT_READ)))))
                   }
                 }
@@ -125,7 +126,8 @@ object KqueueSystem extends PollingSystem {
               IO.async[Unit] { kqcb =>
                 IO.async_[Option[IO[Unit]]] { cb =>
                   ctx.accessPoller { kqueue =>
-                    kqueue.evSet(fd, EVFILT_WRITE, (EV_ADD | EV_ONESHOT).toUShort, 0.toUInt, kqcb)
+                    kqueue
+                      .evSet(fd, EVFILT_WRITE, (EV_ADD | EV_ONESHOT).toUShort, 0.toUInt, kqcb)
                     cb(Right(Some(IO(kqueue.removeCallback(fd, EVFILT_WRITE)))))
                   }
                 }
@@ -161,7 +163,8 @@ object KqueueSystem extends PollingSystem {
 
       // we can't use the consolidated event list here since we're not on the owning thread
       // so instead we eat the syscall
-      val errno = kevent64(kqfd, event, 1, null, 0, KEVENT_FLAG_IMMEDIATE.toUInt, null)
+      val errno =
+        immediate.kevent64(kqfd, event, 1, null, 0, KEVENT_FLAG_IMMEDIATE.toUInt, null)
 
       if (errno < 0) {
         throw new IOException(fromCString(strerror(errno)))
@@ -206,14 +209,24 @@ object KqueueSystem extends PollingSystem {
       @tailrec
       def processEvents(timeout: Ptr[timespec], flags: Int): Unit = {
         val triggeredEvents =
-          kevent64(
-            kqfd,
-            changelist,
-            nchanges,
-            eventlist,
-            MaxEvents,
-            flags.toUInt,
-            timeout)
+          if (flags != KEVENT_FLAG_IMMEDIATE)
+            awaiting.kevent64(
+              kqfd,
+              changelist,
+              nchanges,
+              eventlist,
+              MaxEvents,
+              flags.toUInt,
+              timeout)
+          else
+            immediate.kevent64(
+              kqfd,
+              changelist,
+              nchanges,
+              eventlist,
+              MaxEvents,
+              flags.toUInt,
+              timeout)
 
         // System.err.println(s"got some events: $triggeredEvents")
         if (triggeredEvents >= 0) {
@@ -295,17 +308,34 @@ object KqueueSystem extends PollingSystem {
 
     def kqueue(): CInt = extern
 
-    @blocking
-    def kevent64(
-        kq: CInt,
-        changelist: Ptr[kevent64_s],
-        nchanges: CInt,
-        eventlist: Ptr[kevent64_s],
-        nevents: CInt,
-        flags: CUnsignedInt,
-        timeout: Ptr[timespec]
-    ): CInt = extern
+    @extern
+    object awaiting {
 
+      @blocking
+      def kevent64(
+          kq: CInt,
+          changelist: Ptr[kevent64_s],
+          nchanges: CInt,
+          eventlist: Ptr[kevent64_s],
+          nevents: CInt,
+          flags: CUnsignedInt,
+          timeout: Ptr[timespec]
+      ): CInt = extern
+    }
+
+    @extern
+    object immediate {
+
+      def kevent64(
+          kq: CInt,
+          changelist: Ptr[kevent64_s],
+          nchanges: CInt,
+          eventlist: Ptr[kevent64_s],
+          nevents: CInt,
+          flags: CUnsignedInt,
+          timeout: Ptr[timespec]
+      ): CInt = extern
+    }
   }
 
   private object eventImplicits {

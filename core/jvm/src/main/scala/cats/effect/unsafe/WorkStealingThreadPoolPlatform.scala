@@ -20,7 +20,8 @@ package unsafe
 import java.time.Instant
 import java.time.temporal.ChronoField
 
-trait WorkStealingThreadPoolPlatform[P <: AnyRef] extends Scheduler { this: WorkStealingThreadPool[P] =>
+trait WorkStealingThreadPoolPlatform[P <: AnyRef] extends Scheduler {
+  this: WorkStealingThreadPool[P] =>
 
   override def nowMicros(): Long = {
     val now = Instant.now()

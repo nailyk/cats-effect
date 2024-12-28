@@ -18,7 +18,8 @@ package cats.effect
 
 import org.specs2.ScalaCheck
 
-trait IOPlatformSpecification extends IOConcurrencySpecification { self: BaseSpec with ScalaCheck =>
+trait IOPlatformSpecification extends IOConcurrencySpecification {
+  self: BaseSpec with ScalaCheck =>
 
   def platformSpecs = "platform" should {
 

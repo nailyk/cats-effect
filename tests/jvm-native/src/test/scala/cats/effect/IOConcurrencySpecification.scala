@@ -334,9 +334,7 @@ trait IOConcurrencySpecification extends DetectPlatform { this: BaseSpec with Sc
       Resource
         .make(IO(Executors.newSingleThreadExecutor()))(exec => IO(exec.shutdownNow()).void)
         .map(ExecutionContext.fromExecutor(_))
-        .use { ec =>
-          IO.sleep(1.day).start.flatMap(_.cancel.evalOn(ec)).parReplicateA_(100000)
-        }
+        .use { ec => IO.sleep(1.day).start.flatMap(_.cancel.evalOn(ec)).parReplicateA_(100000) }
         .as(ok)
     }
 
@@ -427,9 +425,8 @@ trait IOConcurrencySpecification extends DetectPlatform { this: BaseSpec with Sc
           }
       }
 
-      val (pool, poller, shutdown) = IORuntime.createWorkStealingComputeThreadPool(
-        threads = 2,
-        pollingSystem = DummySystem)
+      val (pool, poller, shutdown) =
+        IORuntime.createWorkStealingComputeThreadPool(threads = 2, pollingSystem = DummySystem)
 
       implicit val runtime: IORuntime =
         IORuntime.builder().setCompute(pool, shutdown).addPoller(poller, () => ()).build()

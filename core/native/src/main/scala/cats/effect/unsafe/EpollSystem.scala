@@ -362,7 +362,7 @@ object EpollSystem extends PollingSystem {
   @extern // eventfd.h
   private object eventfd { // TODO: should this be in scala-native?
 
-    final val EFD_CLOEXEC =  0x80000 // TODO: this might be platform-dependent
+    final val EFD_CLOEXEC = 0x80000 // TODO: this might be platform-dependent
     final val EFD_NONBLOCK = 0x00800 // TODO: this might be platform-dependent
 
     def eventfd(initval: CUnsignedInt, flags: CInt): CInt =
