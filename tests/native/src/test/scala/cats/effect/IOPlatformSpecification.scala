@@ -18,9 +18,12 @@ package cats.effect
 
 import org.specs2.ScalaCheck
 
-trait IOPlatformSpecification { self: BaseSpec with ScalaCheck =>
+trait IOPlatformSpecification extends IOConcurrencySpecification { self: BaseSpec with ScalaCheck =>
 
   def platformSpecs = "platform" should {
+
+    concurrencySpecs
+
     "realTimeInstant should return an Instant constructed from realTime" in ticked {
       implicit ticker =>
         val op = for {
