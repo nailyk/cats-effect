@@ -20,6 +20,7 @@ sealed abstract class CI(
     jsEnv: Option[JSEnv],
     testCommands: List[String],
     mimaReport: Boolean,
+    scaladoc: Boolean,
     suffixCommands: List[String]) {
 
   override val toString: String = {
@@ -34,7 +35,8 @@ sealed abstract class CI(
         "clean"
       ) ++ testCommands ++ List(
         jsEnv.fold("")(_ => s"set Global / useJSEnv := JSEnv.NodeJS"),
-        if (mimaReport) "mimaReportBinaryIssues" else ""
+        if (mimaReport) "mimaReportBinaryIssues" else "",
+        if (scaladoc) "doc" else ""
       )).filter(_.nonEmpty) ++ suffixCommands
 
     commands.mkString("; ", "; ", "")
@@ -49,7 +51,9 @@ object CI {
         jsEnv = None,
         testCommands = List("test"),
         mimaReport = true,
-        suffixCommands = List("root/unidoc", "exampleJVM/compile"))
+        scaladoc = true,
+        suffixCommands = List("root/unidoc", "exampleJVM/compile")
+      )
 
   case object JS
       extends CI(
@@ -58,6 +62,7 @@ object CI {
         jsEnv = Some(JSEnv.NodeJS),
         testCommands = List("test"),
         mimaReport = true,
+        scaladoc = true,
         suffixCommands = List("exampleJS/compile")
       )
 
@@ -68,6 +73,7 @@ object CI {
         jsEnv = None,
         testCommands = List("test"),
         mimaReport = true,
+        scaladoc = true,
         suffixCommands = List("exampleNative/compile")
       )
 
@@ -84,6 +90,7 @@ object CI {
           "testOnly *.SecureRandomSpec"
         ),
         mimaReport = false,
+        scaladoc = false,
         suffixCommands = List()
       )
 
@@ -101,6 +108,7 @@ object CI {
           "testOnly *.SecureRandomSpec"
         ),
         mimaReport = false,
+        scaladoc = false,
         suffixCommands = List()
       )
 

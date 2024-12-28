@@ -45,8 +45,9 @@ trait MapRef[F[_], K, V] extends Function1[K, Ref[F, V]] {
 object MapRef extends MapRefCompanionPlatform {
 
   /**
-   * Default constructor for [[MapRef]]. If [[Sync]] is available, it will delegate to
-   * [[ofConcurrentHashMap]], otherwise it will fallback to [[ofShardedImmutableMap]].
+   * Default constructor for [[MapRef]]. If [[cats.effect.kernel.Sync]] is available, it will
+   * delegate to [[ofConcurrentHashMap]], otherwise it will fallback to
+   * [[ofShardedImmutableMap]].
    */
   def apply[F[_]: Concurrent, K, V]: F[MapRef[F, K, Option[V]]] = {
     Concurrent[F] match {

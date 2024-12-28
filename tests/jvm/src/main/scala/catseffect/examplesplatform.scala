@@ -76,8 +76,8 @@ package examples {
     override protected def blockedThreadDetectionEnabled = true
 
     // Loop prevents other worker threads from being parked and hence not
-    // performing the blocked check
+    // performing the blocked check. Cedeing makes the test more deterministic
     val run =
-      IO.unit.foreverM.start >> IO(Thread.sleep(2.seconds.toMillis))
+      IO.cede.foreverM.start >> IO(Thread.sleep(2.seconds.toMillis))
   }
 }
