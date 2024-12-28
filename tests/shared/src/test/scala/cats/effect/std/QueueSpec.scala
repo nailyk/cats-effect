@@ -149,7 +149,7 @@ class BoundedQueueSpec extends BaseSpec with QueueTests[Queue] with DetectPlatfo
         _ <- IO.race(taker.joinWithNever, q.offer(()).delayBy(500.millis))
       } yield ()
 
-      test.parReplicateA(if (isJS || isNative) 1 else 1000).as(ok)
+      test.parReplicateA(if (isJS) 1 else 1000).as(ok)
     }
   }
 
@@ -314,7 +314,7 @@ class BoundedQueueSpec extends BaseSpec with QueueTests[Queue] with DetectPlatfo
     }
 
     "offer/take at high contention" in real {
-      val size = if (isJS || isNative) 10000 else 100000
+      val size = if (isJS) 10000 else 100000
 
       val action = constructor(size) flatMap { q =>
         def par(action: IO[Unit], num: Int): IO[Unit] =
