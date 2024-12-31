@@ -24,6 +24,7 @@ import cats.syntax.all._
 import org.typelevel.scalaccompat.annotation._
 
 import scala.annotation.tailrec
+import scala.collection.concurrent.TrieMap
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.meta.LinktimeInfo
 import scala.scalanative.posix.errno._
@@ -34,7 +35,6 @@ import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 
 import java.io.IOException
-import java.util.{Collections, IdentityHashMap, Set}
 
 object EpollSystem extends PollingSystem {
 
@@ -180,15 +180,15 @@ object EpollSystem extends PollingSystem {
 
   final class Poller private[EpollSystem] (epfd: Int) {
 
-    private[this] val handles: Set[PollHandle] =
-      Collections.newSetFromMap(new IdentityHashMap)
+    private[this] val handles: TrieMap[PollHandle, Unit] =
+      new TrieMap
 
     private[this] val interruptFd: Int = {
       val fd = eventfd.eventfd(0.toUInt, eventfd.EFD_NONBLOCK | eventfd.EFD_CLOEXEC)
       if (fd == -1) {
         throw new IOException(fromCString(strerror(errno)))
       }
-      val event = stackalloc[epoll_event]()
+      val event = stackalloc[Byte](epollImplicits.epoll_eventTag.size).asInstanceOf[Ptr[epoll_event]]
       event.events = (EPOLLET | EPOLLIN).toUInt
       event.data = null
       if (epoll_ctl(epfd, EPOLL_CTL_ADD, fd, event) != 0) {
@@ -210,7 +210,7 @@ object EpollSystem extends PollingSystem {
 
     private[EpollSystem] def poll(timeout: Long): Boolean = {
 
-      val events = stackalloc[epoll_event](MaxEvents.toCSize)
+      val events = stackalloc[Byte](epollImplicits.epoll_eventTag.size * MaxEvents).asInstanceOf[Ptr[epoll_event]]
       var polled = false
 
       @tailrec
@@ -251,7 +251,7 @@ object EpollSystem extends PollingSystem {
       polled
     }
 
-    private[EpollSystem] def needsPoll(): Boolean = !handles.isEmpty()
+    private[EpollSystem] def needsPoll(): Boolean = !handles.isEmpty
 
     private[EpollSystem] def interrupt(): Unit = {
       val buf = stackalloc[CUnsignedInt]()
@@ -269,7 +269,7 @@ object EpollSystem extends PollingSystem {
         handle: PollHandle,
         cb: Either[Throwable, (PollHandle, IO[Unit])] => Unit
     ): Unit = {
-      val event = stackalloc[epoll_event]()
+      val event = stackalloc[Byte](epollImplicits.epoll_eventTag.size).asInstanceOf[Ptr[epoll_event]]
       event.events =
         (EPOLLET | (if (reads) EPOLLIN else 0) | (if (writes) EPOLLOUT else 0)).toUInt
       event.data = toPtr(handle)
@@ -278,7 +278,7 @@ object EpollSystem extends PollingSystem {
         if (epoll_ctl(epfd, EPOLL_CTL_ADD, fd, event) != 0)
           Left(new IOException(fromCString(strerror(errno))))
         else {
-          handles.add(handle)
+          handles.put(handle, ())
           val remove = IO {
             handles.remove(handle)
             if (epoll_ctl(epfd, EPOLL_CTL_DEL, fd, null) != 0)
@@ -310,7 +310,7 @@ object EpollSystem extends PollingSystem {
     final val EPOLLONESHOT = 1 << 30
     final val EPOLLET = 1 << 31
 
-    type epoll_event <: AnyRef
+    type epoll_event
     type epoll_data_t = Ptr[Byte]
 
     def epoll_create1(flags: Int): Int = extern
