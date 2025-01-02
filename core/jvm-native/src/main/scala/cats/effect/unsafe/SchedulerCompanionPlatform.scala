@@ -24,7 +24,10 @@ import java.util.concurrent.{Executors, ScheduledExecutorService}
 
 private[unsafe] abstract class SchedulerCompanionPlatform { this: Scheduler.type =>
 
-  def createDefaultScheduler(threadPrefix: String = "io-scheduler"): (Scheduler, () => Unit) = {
+  def createDefaultScheduler(): (Scheduler, () => Unit) =
+    createDefaultScheduler("io-scheduler")
+
+  def createDefaultScheduler(threadPrefix: String): (Scheduler, () => Unit) = {
     val scheduler = Executors.newSingleThreadScheduledExecutor { r =>
       val t = new Thread(r)
       t.setName(threadPrefix)
