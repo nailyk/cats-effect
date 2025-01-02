@@ -26,38 +26,38 @@ private object LocalQueueConstants {
    *
    * <p>Must be a power of 2.
    */
-  val LocalQueueCapacity: Int = 256
+  final val LocalQueueCapacity = 256
 
   /**
    * Bitmask used for indexing into the circular buffer.
    */
-  val LocalQueueCapacityMask: Int = LocalQueueCapacity - 1
+  final val LocalQueueCapacityMask = LocalQueueCapacity - 1
 
   /**
    * Half of the local queue capacity.
    */
-  val HalfLocalQueueCapacity: Int = LocalQueueCapacity / 2
+  final val HalfLocalQueueCapacity = LocalQueueCapacity / 2
 
   /**
    * Spillover batch size. The runtime relies on the assumption that this number fully divides
    * `HalfLocalQueueCapacity`.
    */
-  val SpilloverBatchSize: Int = 32
+  final val SpilloverBatchSize = 32
 
   /**
    * Number of batches that fit into one half of the local queue.
    */
-  val BatchesInHalfQueueCapacity: Int = HalfLocalQueueCapacity / SpilloverBatchSize
+  final val BatchesInHalfQueueCapacity = HalfLocalQueueCapacity / SpilloverBatchSize
 
   /**
    * The maximum current capacity of the local queue which can still accept a full batch to be
    * added to the queue (remembering that one fiber from the batch is executed by directly and
    * not enqueued on the local queue).
    */
-  val LocalQueueCapacityMinusBatch: Int = LocalQueueCapacity - SpilloverBatchSize + 1
+  final val LocalQueueCapacityMinusBatch = LocalQueueCapacity - SpilloverBatchSize + 1
 
   /**
    * Bitmask used to extract the 16 least significant bits of a 32 bit integer value.
    */
-  val UnsignedShortMask: Int = (1 << 16) - 1
+  final val UnsignedShortMask = (1 << 16) - 1
 }
