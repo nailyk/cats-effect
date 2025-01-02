@@ -97,11 +97,11 @@ object EpollSystem extends PollingSystem {
       writeMutex: Mutex[IO]
   ) extends FileDescriptorPollHandle {
 
-    private[this] var readReadyCounter = 0
-    private[this] var readCallback: Either[Throwable, Int] => Unit = null
+    @volatile private[this] var readReadyCounter = 0
+    @volatile private[this] var readCallback: Either[Throwable, Int] => Unit = null
 
-    private[this] var writeReadyCounter = 0
-    private[this] var writeCallback: Either[Throwable, Int] => Unit = null
+    @volatile private[this] var writeReadyCounter = 0
+    @volatile private[this] var writeCallback: Either[Throwable, Int] => Unit = null
 
     def notify(events: Int): Unit = {
       if ((events & EPOLLIN) != 0) {
@@ -184,7 +184,7 @@ object EpollSystem extends PollingSystem {
       new TrieMap
 
     private[this] val interruptFd: Int = {
-      val fd = eventfd.eventfd(0.toUInt, eventfd.EFD_NONBLOCK | eventfd.EFD_CLOEXEC)
+      val fd = eventfd.eventfd(0, eventfd.EFD_NONBLOCK | eventfd.EFD_CLOEXEC)
       if (fd == -1) {
         throw new IOException(fromCString(strerror(errno)))
       }
@@ -257,7 +257,6 @@ object EpollSystem extends PollingSystem {
     private[EpollSystem] def interrupt(): Unit = {
       val buf = stackalloc[CUnsignedInt]()
       buf(0) = 1.toUInt
-      // TODO: this is not threadsafe, we're reading `interruptFd` without synchronization:
       if (unistd.write(this.interruptFd, buf, 8.toCSize) == -1) {
         throw new IOException(fromCString(strerror(errno)))
       }
@@ -360,13 +359,14 @@ object EpollSystem extends PollingSystem {
           .asInstanceOf[Tag[epoll_event]]
   }
 
+  @nowarn212
   @extern // eventfd.h
   private object eventfd { // TODO: should this be in scala-native?
 
     final val EFD_CLOEXEC = 0x80000 // TODO: this might be platform-dependent
     final val EFD_NONBLOCK = 0x00800 // TODO: this might be platform-dependent
 
-    def eventfd(initval: CUnsignedInt, flags: CInt): CInt =
+    def eventfd(initval: Int, flags: Int): Int =
       extern
   }
 }
