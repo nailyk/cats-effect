@@ -48,7 +48,7 @@ private class Head {
    * completion, action which ultimately signals that stealing is finished.
    */
   @volatile
-  private[this] var head: Int = 0
+  protected var head: Int = 0
 
   {
     // prevent unused warnings
