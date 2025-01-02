@@ -944,10 +944,10 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
     Compile / mainClass := Some("catseffect.examples.NativeRunner"),
     nativeConfig ~= { c => // TODO: remove this when it seems to work
       c.withSourceLevelDebuggingConfig(_.enableAll) // enable generation of debug information
-        .withOptimize(false)  // disable Scala Native optimizer
+        .withOptimize(false) // disable Scala Native optimizer
         .withMode(Mode.debug) // compile using LLVM without optimizations
         .withCompileOptions(c.compileOptions ++ Seq("-gdwarf-4"))
-    },
+    }
   )
 
 def configureIOAppTests(p: Project): Project =
