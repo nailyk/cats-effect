@@ -958,7 +958,7 @@ def configureIOAppTests(p: Project): Project =
       buildInfoPackage := "cats.effect",
       buildInfoKeys ++= Seq(
         "jsRunner" -> (tests.js / Compile / fastOptJS / artifactPath).value,
-        "nativeRunner" -> "" //(tests.native / Compile / nativeConfig).value
+        "nativeRunner" -> (tests.native / Compile / crossTarget).value / (tests.native / Compile / moduleName).value
       )
     )
 
