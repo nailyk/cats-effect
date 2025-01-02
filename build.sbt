@@ -255,10 +255,11 @@ ThisBuild / githubWorkflowBuildMatrixExclusions := {
   val nativeJavaAndOSFilters = {
     val ci = CI.Native.command
 
-    val javaFilters =
-      (ThisBuild / githubWorkflowJavaVersions).value.filterNot(Set(ScalaNativeJava)).map {
-        java => MatrixExclude(Map("ci" -> ci, "java" -> java.render))
-      }
+    val javaFilters = for {
+      java <- (ThisBuild / githubWorkflowJavaVersions).value.filterNot(Set(ScalaNativeJava))
+      os <- (ThisBuild / githubWorkflowOSes).value
+      if !(os == MacOS && java == LoomJava)
+    } yield MatrixExclude(Map("ci" -> ci, "java" -> java.render, "os" -> os))
 
     javaFilters ++ Seq(
       MatrixExclude(Map("os" -> Windows, "ci" -> ci)),

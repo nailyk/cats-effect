@@ -111,12 +111,37 @@ jobs:
             ci: ciChrome
           - ci: ciNative
             java: temurin@11
+            os: ubuntu-latest
+          - ci: ciNative
+            java: temurin@11
+            os: windows-latest
+          - ci: ciNative
+            java: temurin@11
+            os: macos-14
           - ci: ciNative
             java: temurin@17
+            os: ubuntu-latest
+          - ci: ciNative
+            java: temurin@17
+            os: windows-latest
+          - ci: ciNative
+            java: temurin@17
+            os: macos-14
           - ci: ciNative
             java: temurin@21
+            os: ubuntu-latest
+          - ci: ciNative
+            java: temurin@21
+            os: windows-latest
           - ci: ciNative
             java: graalvm@21
+            os: ubuntu-latest
+          - ci: ciNative
+            java: graalvm@21
+            os: windows-latest
+          - ci: ciNative
+            java: graalvm@21
+            os: macos-14
           - os: windows-latest
             ci: ciNative
           - os: macos-14
