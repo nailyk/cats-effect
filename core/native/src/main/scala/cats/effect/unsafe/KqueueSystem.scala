@@ -154,7 +154,7 @@ object KqueueSystem extends PollingSystem {
     private[this] val callbacks = new TrieMap[Int, Either[Throwable, Unit] => Unit]()
 
     private[KqueueSystem] def interrupt(): Unit = {
-      val event = stackalloc[kevent64_s]()
+      val event = stackalloc[Byte](sizeof[kevent64_s]).asInstanceOf[Ptr[kevent64_s]]
 
       event.ident = 0.toUInt
       event.filter = EVFILT_USER
@@ -203,7 +203,8 @@ object KqueueSystem extends PollingSystem {
 
     private[KqueueSystem] def poll(timeout: Long): Boolean = {
 
-      val eventlist = stackalloc[kevent64_s](MaxEvents.toCSize)
+      val eventlist =
+        stackalloc[Byte](MaxEvents.toCSize * sizeof[kevent64_s]).asInstanceOf[Ptr[kevent64_s]]
       var polled = false
 
       @tailrec
@@ -304,7 +305,7 @@ object KqueueSystem extends PollingSystem {
 
     final val NOTE_TRIGGER = 0x01000000
 
-    type kevent64_s <: AnyRef
+    type kevent64_s
 
     def kqueue(): CInt = extern
 
