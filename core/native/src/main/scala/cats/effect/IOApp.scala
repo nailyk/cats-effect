@@ -21,8 +21,8 @@ import cats.effect.std.Console
 import cats.syntax.all._
 
 import scala.concurrent.{blocking, CancellationException, ExecutionContext}
-import scala.scalanative.meta.LinktimeInfo._
 import scala.scalanative.libc.stdlib._
+import scala.scalanative.meta.LinktimeInfo._
 import scala.util.control.NonFatal
 
 import java.util.concurrent.ArrayBlockingQueue
