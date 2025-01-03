@@ -85,8 +85,8 @@ object KqueueSystem extends PollingSystem {
   }
 
   // A kevent is identified by the (ident, filter) pair; there may only be one unique kevent per kqueue
-  @inline private def encodeKevent(ident: Int, filter: Short): Int =
-    (filter << 32) | ident
+  @inline private def encodeKevent(ident: Int, filter: Short): Long =
+    (filter.toLong << 32) | ident.toLong
 
   private final class PollHandle(
       ctx: PollingContext[Poller],
@@ -151,7 +151,7 @@ object KqueueSystem extends PollingSystem {
     // register the current kqueue for the interrupt signal (EV_CLEAR means it stays in queue)
     evSet(0, EVFILT_USER, (EV_ADD | EV_CLEAR).toUShort, 0.toUInt, null)
 
-    private[this] val callbacks = new TrieMap[Int, Either[Throwable, Unit] => Unit]()
+    private[this] val callbacks = new TrieMap[Long, Either[Throwable, Unit] => Unit]()
 
     private[KqueueSystem] def interrupt(): Unit = {
       val event = stackalloc[Byte](sizeof[kevent64_s]).asInstanceOf[Ptr[kevent64_s]]
