@@ -217,7 +217,11 @@ object EpollSystem extends PollingSystem {
       @tailrec
       def processEvents(timeout: Int): Unit = {
 
-        val triggeredEvents = epoll_wait(epfd, events, MaxEvents, timeout)
+        val triggeredEvents =
+          if (timeout >= 0)
+            awaiting.epoll_wait(epfd, events, MaxEvents, timeout)
+          else
+            immediate.epoll_wait(epfd, events, MaxEvents, timeout)
 
         if (triggeredEvents >= 0) {
           polled = true
@@ -317,9 +321,18 @@ object EpollSystem extends PollingSystem {
 
     def epoll_ctl(epfd: Int, op: Int, fd: Int, event: Ptr[epoll_event]): Int = extern
 
-    @blocking // TODO: create non-@blocking version
-    def epoll_wait(epfd: Int, events: Ptr[epoll_event], maxevents: Int, timeout: Int): Int =
-      extern
+    @extern
+    object awaiting {
+      @blocking
+      def epoll_wait(epfd: Int, events: Ptr[epoll_event], maxevents: Int, timeout: Int): Int =
+        extern
+    }
+
+    @extern
+    object immediate {
+      def epoll_wait(epfd: Int, events: Ptr[epoll_event], maxevents: Int, timeout: Int): Int =
+        extern
+    }
   }
 
   private object epollImplicits {
