@@ -267,7 +267,7 @@ object KqueueSystem extends PollingSystem {
       val timeoutSpec =
         if (timeout <= 0) null
         else {
-          val ts = stackalloc[timespec]()
+          val ts = stackalloc[timespec](sizeof[timespec])
           ts.tv_sec = (timeout / 1000000000).toInt
           ts.tv_nsec = (timeout % 1000000000).toInt
           ts

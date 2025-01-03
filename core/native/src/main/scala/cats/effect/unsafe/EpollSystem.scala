@@ -229,7 +229,7 @@ object EpollSystem extends PollingSystem {
             if (handle ne null) {
               handle.notify(event.events.toInt)
             } else {
-              val buf = stackalloc[CUnsignedInt]()
+              val buf = stackalloc[CUnsignedInt](sizeof[CUnsignedInt])
               if (unistd.read(interruptFd, buf, 8.toCSize) == -1) {
                 throw new IOException(fromCString(strerror(errno)))
               }
@@ -255,7 +255,7 @@ object EpollSystem extends PollingSystem {
     private[EpollSystem] def needsPoll(): Boolean = !handles.isEmpty
 
     private[EpollSystem] def interrupt(): Unit = {
-      val buf = stackalloc[CUnsignedInt]()
+      val buf = stackalloc[CUnsignedInt](sizeof[CUnsignedInt])
       buf(0) = 1.toUInt
       if (unistd.write(this.interruptFd, buf, 8.toCSize) == -1) {
         throw new IOException(fromCString(strerror(errno)))
