@@ -218,10 +218,10 @@ object EpollSystem extends PollingSystem {
       def processEvents(timeout: Int): Unit = {
 
         val triggeredEvents =
-          if (timeout >= 0)
-            awaiting.epoll_wait(epfd, events, MaxEvents, timeout)
-          else
+          if (timeout == 0)
             immediate.epoll_wait(epfd, events, MaxEvents, timeout)
+          else
+            awaiting.epoll_wait(epfd, events, MaxEvents, timeout)
 
         if (triggeredEvents >= 0) {
           polled = true
