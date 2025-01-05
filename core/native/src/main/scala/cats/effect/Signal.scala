@@ -55,7 +55,7 @@ private object Signal {
 
   private[this] def onInterrupt(signum: CInt): Unit = {
     val _ = signum
-    val buf = stackalloc[Byte](sizeof[Byte])
+    val buf = stackalloc[Byte]()
     write(interruptWriteFd, buf, 1.toCSize)
     ()
   }
@@ -66,7 +66,7 @@ private object Signal {
 
   private[this] def onTerm(signum: CInt): Unit = {
     val _ = signum
-    val buf = stackalloc[Byte](sizeof[Byte])
+    val buf = stackalloc[Byte]()
     write(termWriteFd, buf, 1.toCSize)
     ()
   }
@@ -77,7 +77,7 @@ private object Signal {
 
   private[this] def onDump(signum: CInt): Unit = {
     val _ = signum
-    val buf = stackalloc[Byte](sizeof[Byte])
+    val buf = stackalloc[Byte]()
     write(dumpWriteFd, buf, 1.toCSize)
     ()
   }
@@ -119,7 +119,7 @@ private object Signal {
   private[this] def awaitSignal(handle: FileDescriptorPollHandle, fd: Int): IO[Unit] =
     handle.pollReadRec(()) { _ =>
       IO {
-        val buf = stackalloc[Byte](sizeof[Byte])
+        val buf = stackalloc[Byte]()
         val rtn = read(fd, buf, 1.toCSize)
         if (rtn >= 0) Either.unit
         else if (errno == EAGAIN) Left(())

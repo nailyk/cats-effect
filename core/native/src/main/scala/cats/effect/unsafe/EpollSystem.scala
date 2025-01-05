@@ -188,7 +188,7 @@ object EpollSystem extends PollingSystem {
       if (fd == -1) {
         throw new IOException(fromCString(strerror(errno)))
       }
-      val event = stackalloc[Byte](sizeof[epoll_event]).asInstanceOf[Ptr[epoll_event]]
+      val event = stackalloc[Byte](epoll_eventTag.size).asInstanceOf[Ptr[epoll_event]]
       event.events = (EPOLLET | EPOLLIN).toUInt
       event.data = null
       if (epoll_ctl(epfd, EPOLL_CTL_ADD, fd, event) != 0) {
@@ -211,7 +211,7 @@ object EpollSystem extends PollingSystem {
     private[EpollSystem] def poll(timeout: Long): Boolean = {
 
       val events =
-        stackalloc[Byte](MaxEvents.toCSize * sizeof[epoll_event]).asInstanceOf[Ptr[epoll_event]]
+        stackalloc[Byte](MaxEvents * epoll_eventTag.size).asInstanceOf[Ptr[epoll_event]]
       var polled = false
 
       @tailrec
@@ -233,7 +233,7 @@ object EpollSystem extends PollingSystem {
             if (handle ne null) {
               handle.notify(event.events.toInt)
             } else {
-              val buf = stackalloc[CUnsignedInt](sizeof[CUnsignedInt])
+              val buf = stackalloc[CUnsignedInt]()
               if (unistd.read(interruptFd, buf, 8.toCSize) == -1) {
                 throw new IOException(fromCString(strerror(errno)))
               }
@@ -259,7 +259,7 @@ object EpollSystem extends PollingSystem {
     private[EpollSystem] def needsPoll(): Boolean = !handles.isEmpty
 
     private[EpollSystem] def interrupt(): Unit = {
-      val buf = stackalloc[CUnsignedInt](sizeof[CUnsignedInt])
+      val buf = stackalloc[CUnsignedInt]()
       buf(0) = 1.toUInt
       if (unistd.write(this.interruptFd, buf, 8.toCSize) == -1) {
         throw new IOException(fromCString(strerror(errno)))
@@ -273,7 +273,7 @@ object EpollSystem extends PollingSystem {
         handle: PollHandle,
         cb: Either[Throwable, (PollHandle, IO[Unit])] => Unit
     ): Unit = {
-      val event = stackalloc[Byte](sizeof[epoll_event]).asInstanceOf[Ptr[epoll_event]]
+      val event = stackalloc[Byte](epoll_eventTag.size).asInstanceOf[Ptr[epoll_event]]
       event.events =
         (EPOLLET | (if (reads) EPOLLIN else 0) | (if (writes) EPOLLOUT else 0)).toUInt
       event.data = toPtr(handle)
