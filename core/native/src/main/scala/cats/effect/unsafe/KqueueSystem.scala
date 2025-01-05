@@ -140,7 +140,7 @@ object KqueueSystem extends PollingSystem {
 
     // this exists to buffer reduce our syscall burden by up to 1/64
     // the buffer accumulates and is passed to kevent64 when we do our periodic poll
-    private[this] val changelistArray = new Array[Byte](sizeof[kevent64_s].toInt * MaxEvents)
+    private[this] val changelistArray = new Array[Byte](MaxEvents * sizeof_kevent64_s)
     @inline private[this] def changelist: Ptr[kevent64_s] =
       changelistArray.atUnsafe(0).asInstanceOf[Ptr[kevent64_s]]
     private[this] var changeCount = 0
@@ -148,7 +148,7 @@ object KqueueSystem extends PollingSystem {
     private[this] val callbacks = new TrieMap[Long, Either[Throwable, Unit] => Unit]()
 
     {
-      val event = stackalloc[Byte](sizeof[kevent64_s]).asInstanceOf[Ptr[kevent64_s]]
+      val event = changelist
 
       event.ident = 0.toUInt
       event.filter = EVFILT_USER
@@ -187,8 +187,7 @@ object KqueueSystem extends PollingSystem {
 
     private[KqueueSystem] def poll(timeout: Long): Boolean = {
 
-      val eventlist =
-        stackalloc[Byte](MaxEvents.toCSize * sizeof[kevent64_s]).asInstanceOf[Ptr[kevent64_s]]
+      val eventlist = changelist
       var polled = false
 
       @tailrec
@@ -271,7 +270,7 @@ object KqueueSystem extends PollingSystem {
     private[KqueueSystem] def needsPoll(): Boolean = changeCount > 0 || callbacks.nonEmpty
 
     private[KqueueSystem] def interrupt(): Unit = {
-      val event = stackalloc[Byte](sizeof[kevent64_s]).asInstanceOf[Ptr[kevent64_s]]
+      val event = stackalloc[Byte](sizeof_kevent64_s).asInstanceOf[Ptr[kevent64_s]]
       event.ident = 0.toUInt
       event.filter = EVFILT_USER
       event.flags = 0.toUShort
@@ -286,7 +285,7 @@ object KqueueSystem extends PollingSystem {
   @extern
   private object event {
     // Derived from https://opensource.apple.com/source/xnu/xnu-7195.81.3/bsd/sys/event.h.auto.html
-
+    
     final val EVFILT_READ = -1
     final val EVFILT_WRITE = -2
     final val EVFILT_USER = -10
@@ -303,6 +302,7 @@ object KqueueSystem extends PollingSystem {
     final val NOTE_TRIGGER = 0x01000000
 
     type kevent64_s
+    final val sizeof_kevent64_s = 48
 
     def kqueue(): CInt = extern
 
