@@ -285,7 +285,7 @@ object KqueueSystem extends PollingSystem {
   @extern
   private object event {
     // Derived from https://opensource.apple.com/source/xnu/xnu-7195.81.3/bsd/sys/event.h.auto.html
-    
+
     final val EVFILT_READ = -1
     final val EVFILT_WRITE = -2
     final val EVFILT_USER = -10
