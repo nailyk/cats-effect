@@ -26,7 +26,7 @@ import scala.util.control.ControlThrowable
  * code, as handling interrupts gracefully is the responsibility of the runtime, so
  * [[UnsafeNonFatal]] should only be used in the fiber runtime.
  */
-object UnsafeNonFatal {
+private[effect] object UnsafeNonFatal {
 
   /**
    * Returns true if the provided `Throwable` is to be considered non-fatal, or false if it is
@@ -40,6 +40,9 @@ object UnsafeNonFatal {
 
   /**
    * Returns Some(t) if RuntimeNonFatal(t) == true, otherwise None
+   *
+   * Implementation does not use a filtered Option, as if there is some FatalError such as
+   * OutOfMemory, there might have trouble allocating an additional `Some` instance.
    */
-  def unapply(t: Throwable): Option[Throwable] = Some(t).filter(apply)
+  def unapply(t: Throwable): Option[Throwable] = if (apply(t)) Some(t) else None
 }
