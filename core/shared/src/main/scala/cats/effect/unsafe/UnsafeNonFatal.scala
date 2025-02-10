@@ -39,7 +39,7 @@ private[effect] object UnsafeNonFatal {
   }
 
   /**
-   * Returns Some(t) if RuntimeNonFatal(t) == true, otherwise None
+   * Returns Some(t) if UnsafeNonFatal(t) == true, otherwise None
    *
    * Implementation does not use a filtered Option, as if there is some FatalError such as
    * OutOfMemory, there might have trouble allocating an additional `Some` instance.
