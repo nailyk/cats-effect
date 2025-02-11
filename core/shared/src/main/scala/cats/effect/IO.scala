@@ -50,7 +50,7 @@ import cats.effect.std.{
   UUIDGen
 }
 import cats.effect.tracing.{Tracing, TracingEvent}
-import cats.effect.unsafe.IORuntime
+import cats.effect.unsafe.{IORuntime, UnsafeNonFatal}
 import cats.syntax._
 import cats.syntax.all._
 
@@ -58,7 +58,6 @@ import scala.annotation.unchecked.uncheckedVariance
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
-import scala.util.control.NonFatal
 
 import java.util.UUID
 import java.util.concurrent.Executor
@@ -1014,7 +1013,7 @@ sealed abstract class IO[+A] private () extends IOPlatform[A] {
     unsafeRunFiber(
       cb(Left(new CancellationException("The fiber was canceled"))),
       t => {
-        if (!NonFatal(t)) {
+        if (!UnsafeNonFatal(t)) {
           t.printStackTrace()
         }
         cb(Left(t))
@@ -1027,7 +1026,7 @@ sealed abstract class IO[+A] private () extends IOPlatform[A] {
     unsafeRunFiber(
       cb(Outcome.canceled),
       t => {
-        if (!NonFatal(t)) {
+        if (!UnsafeNonFatal(t)) {
           t.printStackTrace()
         }
         cb(Outcome.errored(t))
@@ -1050,7 +1049,7 @@ sealed abstract class IO[+A] private () extends IOPlatform[A] {
     val _ = unsafeRunFiber(
       (),
       t => {
-        if (NonFatal(t)) {
+        if (UnsafeNonFatal(t)) {
           if (runtime.config.reportUnhandledFiberErrors)
             runtime.compute.reportFailure(t)
         } else { t.printStackTrace() }

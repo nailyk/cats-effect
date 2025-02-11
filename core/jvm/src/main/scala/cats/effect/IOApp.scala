@@ -19,11 +19,11 @@ package cats.effect
 import cats.effect.metrics.{CpuStarvationWarningMetrics, JvmCpuStarvationMetrics}
 import cats.effect.std.Console
 import cats.effect.tracing.TracingConstants._
+import cats.effect.unsafe.UnsafeNonFatal
 import cats.syntax.all._
 
 import scala.concurrent.{blocking, CancellationException, ExecutionContext}
 import scala.concurrent.duration._
-import scala.util.control.NonFatal
 
 import java.util.concurrent.{ArrayBlockingQueue, CountDownLatch}
 import java.util.concurrent.atomic.AtomicInteger
@@ -218,7 +218,7 @@ trait IOApp {
       new ExecutionContext {
         def reportFailure(t: Throwable): Unit =
           t match {
-            case t if NonFatal(t) =>
+            case t if UnsafeNonFatal(t) =>
               IOApp.this.reportFailure(t).unsafeRunAndForgetWithoutCallback()(runtime)
 
             case t =>
@@ -555,7 +555,7 @@ trait IOApp {
               throw e
 
           case t: Throwable =>
-            if (NonFatal(t)) {
+            if (UnsafeNonFatal(t)) {
               if (isForked) {
                 t.printStackTrace()
                 System.exit(1)
@@ -571,7 +571,7 @@ trait IOApp {
             try {
               r.run()
             } catch {
-              case t if NonFatal(t) =>
+              case t if UnsafeNonFatal(t) =>
                 IOApp.this.reportFailure(t).unsafeRunAndForgetWithoutCallback()(runtime)
 
               case t: Throwable =>

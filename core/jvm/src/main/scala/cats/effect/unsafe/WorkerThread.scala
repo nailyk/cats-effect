@@ -24,7 +24,6 @@ import scala.annotation.{switch, tailrec}
 import scala.collection.mutable
 import scala.concurrent.{BlockContext, CanAwait}
 import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.util.control.NonFatal
 
 import java.lang.Long.MIN_VALUE
 import java.util.concurrent.{ArrayBlockingQueue, ThreadLocalRandom}
@@ -376,7 +375,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
           pool.notifyParked(rnd)
           try fiber.run()
           catch {
-            case t if NonFatal(t) => pool.reportFailure(t)
+            case t if UnsafeNonFatal(t) => pool.reportFailure(t)
             case t: Throwable => IOFiber.onFatalFailure(t)
           }
 
@@ -393,7 +392,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
           // The dequeued element is a single fiber. Execute it immediately.
           try fiber.run()
           catch {
-            case t if NonFatal(t) => pool.reportFailure(t)
+            case t if UnsafeNonFatal(t) => pool.reportFailure(t)
             case t: Throwable => IOFiber.onFatalFailure(t)
           }
 
@@ -443,7 +442,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
             // Run the stolen fiber.
             try fiber.run()
             catch {
-              case t if NonFatal(t) => pool.reportFailure(t)
+              case t if UnsafeNonFatal(t) => pool.reportFailure(t)
               case t: Throwable => IOFiber.onFatalFailure(t)
             }
           }
@@ -495,7 +494,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
           pool.notifyParked(rnd)
           try fiber.run()
           catch {
-            case t if NonFatal(t) => pool.reportFailure(t)
+            case t if UnsafeNonFatal(t) => pool.reportFailure(t)
             case t: Throwable => IOFiber.onFatalFailure(t)
           }
 
@@ -515,7 +514,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
           // The dequeued element is a single fiber. Execute it immediately.
           try fiber.run()
           catch {
-            case t if NonFatal(t) => pool.reportFailure(t)
+            case t if UnsafeNonFatal(t) => pool.reportFailure(t)
             case t: Throwable => IOFiber.onFatalFailure(t)
           }
 
@@ -545,7 +544,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
             // Run the stolen fiber.
             try fiber.run()
             catch {
-              case t if NonFatal(t) => pool.reportFailure(t)
+              case t if UnsafeNonFatal(t) => pool.reportFailure(t)
               case t: Throwable => IOFiber.onFatalFailure(t)
             }
           }
@@ -810,7 +809,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
 
             try fiber.run()
             catch {
-              case t if NonFatal(t) => pool.reportFailure(t)
+              case t if UnsafeNonFatal(t) => pool.reportFailure(t)
               case t: Throwable => IOFiber.onFatalFailure(t)
             }
           } else if (element.isInstanceOf[Runnable]) {
@@ -824,7 +823,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
             // The dequeued element is a single fiber. Execute it immediately.
             try fiber.run()
             catch {
-              case t if NonFatal(t) => pool.reportFailure(t)
+              case t if UnsafeNonFatal(t) => pool.reportFailure(t)
               case t: Throwable => IOFiber.onFatalFailure(t)
             }
           }
@@ -861,7 +860,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
             // Run the fiber.
             try fiber.run()
             catch {
-              case t if NonFatal(t) => pool.reportFailure(t)
+              case t if UnsafeNonFatal(t) => pool.reportFailure(t)
               case t: Throwable => IOFiber.onFatalFailure(t)
             }
           } else {
