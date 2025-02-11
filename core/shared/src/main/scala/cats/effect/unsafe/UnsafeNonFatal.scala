@@ -37,12 +37,4 @@ private[effect] object UnsafeNonFatal {
       false
     case _ => true
   }
-
-  /**
-   * Returns Some(t) if UnsafeNonFatal(t) == true, otherwise None
-   *
-   * Implementation does not use a filtered Option, as if there is some FatalError such as
-   * OutOfMemory, there might have trouble allocating an additional `Some` instance.
-   */
-  def unapply(t: Throwable): Option[Throwable] = if (apply(t)) Some(t) else None
 }
