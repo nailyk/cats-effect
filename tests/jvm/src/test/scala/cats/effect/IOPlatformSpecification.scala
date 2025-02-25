@@ -50,6 +50,26 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
   def platformSpecs = {
     "platform" should {
 
+      "unsafeRunTimed cancels task if timed-out" in {
+        val latch = new CountDownLatch(1)
+        val task = IO.never.onCancel(IO.sleep(100.millis) *> IO(latch.countDown()))
+        task.unsafeRunTimed(100.millis)(runtime())
+        latch.getCount() must beEqualTo(1) // didn't backpressure on finalizer
+        latch.await(1, SECONDS) must beTrue // but it does eventually run
+      }
+
+      "unsafeRunSync cancels task if interrupted" in realWithRuntime { implicit rt =>
+        for {
+          latch <- IO(new CountDownLatch(1))
+          task = IO.never.as(false).onCancel(IO.sleep(100.millis) *> IO(latch.countDown()))
+          result <- IO.interruptible(task.unsafeRunSync()).timeoutTo(100.millis, IO.pure(true))
+          _ <- IO(result must beTrue) // timed-out
+          _ <- IO(latch.getCount() must beEqualTo(1)) // didn't backpressure on finalizer
+          _ <- // but it does eventually run
+            IO.interruptible(latch.await(1, SECONDS) must beTrue)
+        } yield ok
+      }
+
       "shift delay evaluation within evalOn" in real {
         val Exec1Name = "testing executor 1"
         val exec1 = Executors.newSingleThreadExecutor { r =>

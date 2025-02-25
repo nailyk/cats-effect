@@ -44,8 +44,9 @@ abstract private[effect] class IOPlatform[+A] extends Serializable { self: IO[A]
   /**
    * Similar to `unsafeRunSync`, except with a bounded blocking duration when awaiting
    * asynchronous results. As soon as an async blocking limit is hit, evaluation ''immediately''
-   * aborts and `None` is returned. Note that this does not run finalizers, which makes it quite
-   * different (and less safe) than other mechanisms for limiting evaluation time.
+   * aborts and `None` is returned. Note that this does not backpressure on the completion of
+   * finalizers, which makes it quite different (and less safe) than other mechanisms for
+   * limiting evaluation time.
    *
    * {{{
    * val program: IO[A] = ...
@@ -56,8 +57,7 @@ abstract private[effect] class IOPlatform[+A] extends Serializable { self: IO[A]
    *
    * The first line will run `program` for at most five seconds, interrupt the calculation, and
    * run the finalizers for as long as they need to complete. The second line will run `program`
-   * for at most five seconds and then immediately release the latch, without interrupting
-   * `program`'s ongoing execution.
+   * for at most five seconds, start its finalizers, but then immediately release the latch.
    *
    * In other words, this function probably doesn't do what you think it does, and you probably
    * don't want to use it outside of tests.
@@ -76,11 +76,19 @@ abstract private[effect] class IOPlatform[+A] extends Serializable { self: IO[A]
       ()
     }
 
+    def cancel() = fiber.cancel.unsafeRunAndForget()
+
     try {
       val result = blocking(queue.poll(limit.toNanos, TimeUnit.NANOSECONDS))
-      if (result eq null) None else result.fold(throw _, Some(_))
+      if (result eq null) {
+        cancel()
+        None
+      } else {
+        result.fold(throw _, Some(_))
+      }
     } catch {
       case _: InterruptedException =>
+        cancel()
         None
     } finally {
       if (IOFiberConstants.TrackFiberContext)
