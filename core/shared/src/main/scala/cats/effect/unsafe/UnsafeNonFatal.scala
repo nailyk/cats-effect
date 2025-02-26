@@ -40,3 +40,5 @@ private[effect] object UnsafeNonFatal {
     case _ => true
   }
 }
+
+private[effect] class UnsafeNonFatal private ()
