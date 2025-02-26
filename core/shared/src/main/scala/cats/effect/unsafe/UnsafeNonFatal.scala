@@ -17,8 +17,9 @@
 package cats.effect
 package unsafe
 
-import Platform.static
 import scala.util.control.ControlThrowable
+
+import Platform.static
 
 /**
  * An alternative to [[scala.util.control.NonFatal]] that does not treat
