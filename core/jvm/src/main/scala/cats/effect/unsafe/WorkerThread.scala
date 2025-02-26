@@ -20,7 +20,7 @@ package unsafe
 import cats.effect.tracing.Tracing.captureTrace
 import cats.effect.tracing.TracingConstants
 
-import scala.annotation.{switch, tailrec}
+import scala.annotation.tailrec
 import scala.collection.mutable
 import scala.concurrent.{BlockContext, CanAwait}
 import scala.concurrent.duration.{Duration, FiniteDuration}
@@ -762,8 +762,8 @@ private[effect] final class WorkerThread[P <: AnyRef](
         }
       }
 
-      ((tick & ExternalQueueTicksMask): @switch) match {
-        case 0 =>
+      if ((tick & ExternalWorkTicksMask) == 0) {
+        if ((tick & PollingTicksMask) == 0) {
           if (pool.blockedThreadDetectionEnabled) {
             // TODO prefetch pool.workerThread or Thread.State.BLOCKED ?
             // TODO check that branch elimination makes it free when off
@@ -792,6 +792,9 @@ private[effect] final class WorkerThread[P <: AnyRef](
             val _ = drainReadyEvents(system.poll(_poller, 0), false)
           }
 
+          // update the current time
+          now = System.nanoTime()
+        } else {
           // Obtain a fiber or batch of fibers from the external queue.
           val element = external.poll(rnd)
           if (element.isInstanceOf[Array[Runnable]]) {
@@ -828,46 +831,44 @@ private[effect] final class WorkerThread[P <: AnyRef](
               case t: Throwable => IOFiber.onFatalFailure(t)
             }
           }
-
-          // update the current time
-          now = System.nanoTime()
+        }
 
         // Transition to executing fibers from the local queue.
-        case _ =>
-          // Call all of our expired timers:
-          var cont = true
-          while (cont) {
-            val cb = sleepers.pollFirstIfTriggered(now)
-            if (cb ne null) {
-              cb(RightUnit)
-            } else {
-              cont = false
-            }
+      } else {
+        // Call all of our expired timers:
+        var cont = true
+        while (cont) {
+          val cb = sleepers.pollFirstIfTriggered(now)
+          if (cb ne null) {
+            cb(RightUnit)
+          } else {
+            cont = false
           }
+        }
 
-          // Check the queue bypass reference before dequeueing from the local
-          // queue.
-          val fiber = if (cedeBypass eq null) {
-            // The queue bypass reference is empty.
-            // Fall back to the local queue.
-            queue.dequeue(self)
-          } else {
-            // Fetch and null out the queue bypass reference.
-            val f = cedeBypass
-            cedeBypass = null
-            f
+        // Check the queue bypass reference before dequeueing from the local
+        // queue.
+        val fiber = if (cedeBypass eq null) {
+          // The queue bypass reference is empty.
+          // Fall back to the local queue.
+          queue.dequeue(self)
+        } else {
+          // Fetch and null out the queue bypass reference.
+          val f = cedeBypass
+          cedeBypass = null
+          f
+        }
+        if (fiber ne null) {
+          // Run the fiber.
+          try fiber.run()
+          catch {
+            case t if NonFatal(t) => pool.reportFailure(t)
+            case t: Throwable => IOFiber.onFatalFailure(t)
           }
-          if (fiber ne null) {
-            // Run the fiber.
-            try fiber.run()
-            catch {
-              case t if NonFatal(t) => pool.reportFailure(t)
-              case t: Throwable => IOFiber.onFatalFailure(t)
-            }
-          } else {
-            // Transition to checking the external queue.
-            lookForWork()
-          }
+        } else {
+          // Transition to checking the external queue.
+          lookForWork()
+        }
 
         // Continue executing fibers from the local queue.
       }
