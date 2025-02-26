@@ -17,6 +17,7 @@
 package cats.effect
 package unsafe
 
+import Platform.static
 import scala.util.control.ControlThrowable
 
 /**
@@ -32,7 +33,7 @@ private[effect] object UnsafeNonFatal {
    * Returns true if the provided `Throwable` is to be considered non-fatal, or false if it is
    * to be considered fatal
    */
-  def apply(t: Throwable): Boolean = t match {
+  @static def apply(t: Throwable): Boolean = t match {
     case _: VirtualMachineError | _: ThreadDeath | _: LinkageError | _: ControlThrowable =>
       false
     case _ => true
