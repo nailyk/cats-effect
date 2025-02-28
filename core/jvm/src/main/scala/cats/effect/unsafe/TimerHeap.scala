@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -516,8 +516,8 @@ private final class TimerHeap extends AtomicInteger {
 
       // if we're on the thread that owns this heap, we can remove ourselves immediately
       val thread = Thread.currentThread()
-      if (thread.isInstanceOf[WorkerThread[_]]) {
-        val worker = thread.asInstanceOf[WorkerThread[_]]
+      if (thread.isInstanceOf[WorkerThread[?]]) {
+        val worker = thread.asInstanceOf[WorkerThread[?]]
         val heap = TimerHeap.this
         if (worker.ownsTimers(heap)) {
           if (index >= 0) { // remove only if we are still in the heap

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,13 +24,13 @@ private[unsafe] abstract class FiberMonitorShared {
   protected val newline = System.lineSeparator()
   protected val doubleNewline = s"$newline $newline"
 
-  protected def fiberString(fiber: IOFiber[_], trace: Trace, status: String): String = {
+  protected def fiberString(fiber: IOFiber[?], trace: Trace, status: String): String = {
     val id = System.identityHashCode(fiber).toHexString
     val prefixedTrace = if (trace.toList.isEmpty) "" else newline + Tracing.prettyPrint(trace)
     s"cats.effect.IOFiber@$id $status$prefixedTrace"
   }
 
-  protected def printFibers(fibers: Map[IOFiber[_], Trace], status: String)(
+  protected def printFibers(fibers: Map[IOFiber[?], Trace], status: String)(
       print: String => Unit): Unit =
     fibers foreach {
       case (fiber, trace) =>

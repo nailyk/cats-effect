@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -109,6 +109,7 @@ ThisBuild / developers := List(
 )
 
 val PrimaryOS = "ubuntu-latest"
+val ArmOS = "ubuntu-22.04-arm"
 val Windows = "windows-latest"
 val MacOS = "macos-14"
 
@@ -147,7 +148,7 @@ ThisBuild / githubWorkflowJavaVersions := Seq(
   LatestJava,
   LoomJava,
   GraalVM)
-ThisBuild / githubWorkflowOSes := Seq(PrimaryOS, Windows, MacOS)
+ThisBuild / githubWorkflowOSes := Seq(PrimaryOS, ArmOS, Windows, MacOS)
 
 ThisBuild / githubWorkflowBuildPreamble ++= Seq(
   WorkflowStep.Use(
@@ -228,12 +229,20 @@ ThisBuild / githubWorkflowBuildMatrixExclusions := {
     if !(scala == Scala3 && java == LatestJava)
   } yield MatrixExclude(Map("scala" -> scala, "java" -> java.render))
 
+  val armFilters =
+    (ThisBuild / githubWorkflowJavaVersions).value.filterNot(Set(LatestJava)).map { java =>
+      MatrixExclude(Map("os" -> ArmOS, "java" -> java.render))
+    }
+
   val windowsAndMacScalaFilters =
     (ThisBuild / githubWorkflowScalaVersions).value.filterNot(Set(Scala213)).flatMap { scala =>
       Seq(
         MatrixExclude(Map("os" -> Windows, "scala" -> scala, "ci" -> CI.JVM.command)),
         MatrixExclude(Map("os" -> MacOS, "scala" -> scala, "ci" -> CI.JVM.command)))
-    } :+ MatrixExclude(Map("os" -> MacOS, "java" -> OldGuardJava.render))
+    } ++ Seq(
+      MatrixExclude(Map("os" -> MacOS, "java" -> OldGuardJava.render)),
+      MatrixExclude(Map("os" -> MacOS, "java" -> LTSJava.render))
+    )
 
   val jsScalaFilters = for {
     scala <- (ThisBuild / githubWorkflowScalaVersions).value.filterNot(Set(Scala213))
@@ -246,26 +255,33 @@ ThisBuild / githubWorkflowBuildMatrixExclusions := {
         MatrixExclude(Map("ci" -> ci, "java" -> java.render))
       }
 
-    javaFilters ++ Seq(
-      MatrixExclude(Map("os" -> Windows, "ci" -> ci)),
-      MatrixExclude(Map("os" -> MacOS, "ci" -> ci)))
+    val osFilters =
+      (ThisBuild / githubWorkflowOSes).value.tail.map { os =>
+        MatrixExclude(Map("os" -> os, "ci" -> ci))
+      }
+
+    javaFilters ++ osFilters
   }
 
   val nativeJavaAndOSFilters = {
     val ci = CI.Native.command
 
-    val javaFilters =
-      (ThisBuild / githubWorkflowJavaVersions).value.filterNot(Set(ScalaNativeJava)).map {
-        java => MatrixExclude(Map("ci" -> ci, "java" -> java.render))
-      }
+    val javaFilters = for {
+      java <- (ThisBuild / githubWorkflowJavaVersions).value.filterNot(Set(ScalaNativeJava))
+      os <- (ThisBuild / githubWorkflowOSes).value
+      if !(Set(ArmOS, MacOS).contains(os) && java == LatestJava)
+    } yield MatrixExclude(Map("ci" -> ci, "java" -> java.render, "os" -> os))
 
-    javaFilters ++ Seq(
+    val osFilters = Seq(
+      MatrixExclude(Map("os" -> ArmOS, "ci" -> ci, "scala" -> Scala212)),
       MatrixExclude(Map("os" -> Windows, "ci" -> ci)),
       MatrixExclude(Map("os" -> MacOS, "ci" -> ci, "scala" -> Scala212))
     )
+
+    javaFilters ++ osFilters
   }
 
-  scalaJavaFilters ++ windowsAndMacScalaFilters ++ jsScalaFilters ++ jsJavaAndOSFilters ++ nativeJavaAndOSFilters
+  scalaJavaFilters ++ armFilters ++ windowsAndMacScalaFilters ++ jsScalaFilters ++ jsJavaAndOSFilters ++ nativeJavaAndOSFilters
 }
 
 lazy val useJSEnv =

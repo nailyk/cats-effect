@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -21,5 +21,5 @@ package unsafe
  * An introspectable executor that runs fibers. Useful for fiber dumps.
  */
 private[unsafe] trait FiberExecutor {
-  def liveTraces(): Map[IOFiber[_], Trace]
+  def liveTraces(): Map[IOFiber[?], Trace]
 }

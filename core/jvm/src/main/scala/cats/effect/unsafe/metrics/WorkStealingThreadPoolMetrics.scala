@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ import scala.concurrent.ExecutionContext
 /**
  * Represents metrics associated with a work-stealing thread pool.
  */
-sealed trait WorkStealingPoolMetrics {
+sealed trait WorkStealingThreadPoolMetrics {
 
   /**
    * The identifier of the instrumented work-stealing thread pool. Uniquely identifies a
@@ -243,17 +243,17 @@ sealed trait TimerHeapMetrics {
 
 }
 
-object WorkStealingPoolMetrics {
+object WorkStealingThreadPoolMetrics {
 
-  private[metrics] def apply(ec: ExecutionContext): Option[WorkStealingPoolMetrics] =
+  private[metrics] def apply(ec: ExecutionContext): Option[WorkStealingThreadPoolMetrics] =
     ec match {
-      case wstp: WorkStealingThreadPool[_] => Some(workStealingThreadPoolMetrics(wstp))
+      case wstp: WorkStealingThreadPool[?] => Some(workStealingThreadPoolMetrics(wstp))
       case _ => None
     }
 
   private def workStealingThreadPoolMetrics(
-      wstp: WorkStealingThreadPool[_ <: AnyRef]
-  ): WorkStealingPoolMetrics = new WorkStealingPoolMetrics {
+      wstp: WorkStealingThreadPool[? <: AnyRef]
+  ): WorkStealingThreadPoolMetrics = new WorkStealingThreadPoolMetrics {
     val identifier =
       wstp.id.toString
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ trait ContSpecBase extends BaseSpec with ContSpecBasePlatform { outer =>
 
   def cont[K, R](body: Cont[IO, K, R]): IO[R]
 
-  def execute(io: IO[_], times: Int, i: Int = 0): IO[Success] = {
+  def execute(io: IO[?], times: Int, i: Int = 0): IO[Success] = {
     if (i == times) IO(success)
     else io >> execute(io, times, i + 1)
   }

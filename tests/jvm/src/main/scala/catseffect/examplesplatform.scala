@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,8 +35,7 @@ package examples {
     override protected def runtimeConfig =
       super.runtimeConfig.copy(shutdownHookTimeout = Duration.Zero)
 
-    val run: IO[Unit] =
-      IO.blocking(System.exit(0)).uncancelable
+    val run: IO[Unit] = IO(System.exit(0))
   }
 
   object FatalErrorUnsafeRun extends IOApp {
@@ -67,6 +66,19 @@ package examples {
 
     def run(args: List[String]): IO[ExitCode] =
       IO.raiseError(new Exception).startOn(MainThread) *>
+        IO.sleep(1.second) *> IO(exitCode.get)
+
+  }
+
+  object MainThreadReportFailureRunnable extends IOApp {
+
+    val exitCode = new AtomicReference[ExitCode](ExitCode.Error)
+
+    override def reportFailure(err: Throwable): IO[Unit] =
+      IO(exitCode.set(ExitCode.Success))
+
+    def run(args: List[String]): IO[ExitCode] =
+      IO(MainThread.execute(() => throw new Exception)) *>
         IO.sleep(1.second) *> IO(exitCode.get)
 
   }
