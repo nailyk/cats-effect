@@ -316,12 +316,15 @@ ThisBuild / apiURL := Some(url("https://typelevel.org/cats-effect/api/3.x/"))
 
 ThisBuild / autoAPIMappings := true
 
+ThisBuild / Test / testOptions += Tests.Argument("+l")
+
 val CatsVersion = "2.11.0"
 val CatsMtlVersion = "1.3.1"
-val Specs2Version = "4.20.5"
 val ScalaCheckVersion = "1.17.1"
-val DisciplineVersion = "1.4.0"
 val CoopVersion = "1.2.0"
+val MUnitVersion = "1.0.0-M11"
+val MUnitScalaCheckVersion = "1.0.0-M11"
+val DisciplineMUnitVersion = "2.0.0-M3"
 
 val MacrotaskExecutorVersion = "1.1.1"
 
@@ -410,8 +413,7 @@ lazy val kernel = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-kernel",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core" % CatsVersion,
-      "org.specs2" %%% "specs2-core" % Specs2Version % Test
+      "org.typelevel" %%% "cats-core" % CatsVersion
     ),
     mimaBinaryIssueFilters ++= Seq(
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.kernel.Ref$SyncRef"),
@@ -467,7 +469,7 @@ lazy val laws = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     name := "cats-effect-laws",
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-laws" % CatsVersion,
-      "org.typelevel" %%% "discipline-specs2" % DisciplineVersion % Test)
+      "org.typelevel" %%% "discipline-munit" % DisciplineMUnitVersion % Test)
   )
 
 /**
@@ -923,7 +925,6 @@ lazy val testkit = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     name := "cats-effect-testkit",
     libraryDependencies ++= Seq(
       "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion,
-      "org.specs2" %%% "specs2-core" % Specs2Version % Test
     )
   )
 
@@ -938,8 +939,9 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
     name := "cats-effect-tests",
     libraryDependencies ++= Seq(
       "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion,
-      "org.specs2" %%% "specs2-scalacheck" % Specs2Version % Test,
-      "org.typelevel" %%% "discipline-specs2" % DisciplineVersion % Test,
+      "org.scalameta" %%% "munit" % MUnitVersion % Test,
+      "org.scalameta" %%% "munit-scalacheck" % MUnitScalaCheckVersion % Test,
+      "org.typelevel" %%% "discipline-munit" % DisciplineMUnitVersion % Test,
       "org.typelevel" %%% "cats-kernel-laws" % CatsVersion % Test,
       "org.typelevel" %%% "cats-mtl-laws" % CatsMtlVersion % Test
     ),
@@ -963,7 +965,7 @@ def configureIOAppTests(p: Project): Project =
   p.enablePlugins(NoPublishPlugin, BuildInfoPlugin)
     .settings(
       Test / unmanagedSourceDirectories += (LocalRootProject / baseDirectory).value / "ioapp-tests" / "src" / "test" / "scala",
-      libraryDependencies += "org.specs2" %%% "specs2-core" % Specs2Version % Test,
+      libraryDependencies += "org.scalameta" %%% "munit" % MUnitVersion % Test,
       buildInfoPackage := "cats.effect",
       buildInfoKeys ++= Seq(
         "jsRunner" -> (tests.js / Compile / fastOptJS / artifactPath).value,
@@ -1011,8 +1013,7 @@ lazy val std = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-std",
     libraryDependencies ++= Seq(
-      "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion % Test,
-      "org.specs2" %%% "specs2-scalacheck" % Specs2Version % Test
+      "org.scalameta" %%% "munit" % MUnitVersion % Test,
     ),
     mimaBinaryIssueFilters ++= {
       if (tlIsScala3.value) {
