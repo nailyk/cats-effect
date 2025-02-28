@@ -36,7 +36,6 @@ import cats.effect.tracing.TracingConstants
 import scala.collection.mutable
 import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.util.control.NonFatal
 
 import java.time.Instant
 import java.time.temporal.ChronoField
@@ -680,7 +679,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
         try {
           task.run()
         } catch {
-          case ex if NonFatal(ex) =>
+          case ex if UnsafeNonFatal(ex) =>
             reportFailure(ex)
         }
       }

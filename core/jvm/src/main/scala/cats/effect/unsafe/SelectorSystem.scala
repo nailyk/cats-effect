@@ -19,8 +19,6 @@ package unsafe
 
 import cats.effect.unsafe.metrics.PollerMetrics
 
-import scala.util.control.NonFatal
-
 import java.nio.channels.{SelectableChannel, SelectionKey}
 import java.nio.channels.spi.{AbstractSelector, SelectorProvider}
 import java.util.Iterator
@@ -72,7 +70,7 @@ final class SelectorSystem private (provider: SelectorProvider) extends PollingS
         // reset interest in triggered ops
         key.interestOps(key.interestOps() & ~readyOps)
       } catch {
-        case ex if NonFatal(ex) =>
+        case ex if UnsafeNonFatal(ex) =>
           error = ex
           readyOps = -1 // interest all waiters
       }
@@ -150,7 +148,7 @@ final class SelectorSystem private (provider: SelectorProvider) extends PollingS
 
             cb(Right(Some(cancel)))
           } catch {
-            case ex if NonFatal(ex) =>
+            case ex if UnsafeNonFatal(ex) =>
               poller.countErroredOperation(ops)
               cb(Left(ex))
           }

@@ -23,7 +23,6 @@ import cats.effect.unsafe._
 import scala.annotation.{switch, tailrec}
 import scala.concurrent.ExecutionContext
 import scala.concurrent.duration._
-import scala.util.control.NonFatal
 
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
@@ -262,7 +261,7 @@ private final class IOFiber[A](
         case 1 =>
           val cur = cur0.asInstanceOf[Error]
           val ex = cur.t
-          if (!NonFatal(ex))
+          if (!UnsafeNonFatal(ex))
             onFatalFailure(ex)
 
           runLoop(failed(ex, 0), nextCancelation, nextAutoCede)
@@ -278,7 +277,7 @@ private final class IOFiber[A](
           val r =
             try cur.thunk()
             catch {
-              case t if NonFatal(t) =>
+              case t if UnsafeNonFatal(t) =>
                 error = t
               case t: Throwable =>
                 onFatalFailure(t)
@@ -323,7 +322,7 @@ private final class IOFiber[A](
             val result =
               try f(v)
               catch {
-                case t if NonFatal(t) =>
+                case t if UnsafeNonFatal(t) =>
                   error = t
                 case t: Throwable =>
                   onFatalFailure(t)
@@ -340,7 +339,7 @@ private final class IOFiber[A](
             case 1 =>
               val error = ioe.asInstanceOf[Error]
               val ex = error.t
-              if (!NonFatal(ex))
+              if (!UnsafeNonFatal(ex))
                 onFatalFailure(ex)
 
               runLoop(failed(ex, 0), nextCancelation - 1, nextAutoCede)
@@ -357,7 +356,7 @@ private final class IOFiber[A](
               val result =
                 try f(delay.thunk())
                 catch {
-                  case t if NonFatal(t) =>
+                  case t if UnsafeNonFatal(t) =>
                     error = t
                   case t: Throwable =>
                     onFatalFailure(t)
@@ -397,7 +396,7 @@ private final class IOFiber[A](
           def next(v: Any): IO[Any] =
             try f(v)
             catch {
-              case t if NonFatal(t) =>
+              case t if UnsafeNonFatal(t) =>
                 failed(t, 0)
               case t: Throwable =>
                 onFatalFailure(t)
@@ -411,7 +410,7 @@ private final class IOFiber[A](
             case 1 =>
               val error = ioe.asInstanceOf[Error]
               val ex = error.t
-              if (!NonFatal(ex))
+              if (!UnsafeNonFatal(ex))
                 onFatalFailure(ex)
 
               runLoop(failed(ex, 0), nextCancelation - 1, nextAutoCede)
@@ -427,7 +426,7 @@ private final class IOFiber[A](
               val result =
                 try f(delay.thunk())
                 catch {
-                  case t if NonFatal(t) =>
+                  case t if UnsafeNonFatal(t) =>
                     failed(t, 0)
                   case t: Throwable =>
                     onFatalFailure(t)
@@ -466,7 +465,7 @@ private final class IOFiber[A](
             case 1 =>
               val error = ioa.asInstanceOf[Error]
               val t = error.t
-              if (!NonFatal(t))
+              if (!UnsafeNonFatal(t))
                 onFatalFailure(t)
               // We need to augment the exception here because it doesn't get
               // forwarded to the `failed` path.
@@ -485,7 +484,7 @@ private final class IOFiber[A](
               val result =
                 try delay.thunk()
                 catch {
-                  case t if NonFatal(t) =>
+                  case t if UnsafeNonFatal(t) =>
                     // We need to augment the exception here because it doesn't
                     // get forwarded to the `failed` path.
                     Tracing.augmentThrowable(runtime.enhancedExceptions, t, tracingEvents)
@@ -568,7 +567,7 @@ private final class IOFiber[A](
           val next =
             try cur.body(poll)
             catch {
-              case t if NonFatal(t) =>
+              case t if UnsafeNonFatal(t) =>
                 IO.raiseError(t)
               case t: Throwable =>
                 onFatalFailure(t)
@@ -759,7 +758,7 @@ private final class IOFiber[A](
             try {
               body[IO].apply(cb, get, FunctionK.id)
             } catch {
-              case t if NonFatal(t) =>
+              case t if UnsafeNonFatal(t) =>
                 IO.raiseError(t)
               case t: Throwable =>
                 onFatalFailure(t)
@@ -1021,7 +1020,7 @@ private final class IOFiber[A](
                   try {
                     cur.thunk()
                   } catch {
-                    case t if NonFatal(t) =>
+                    case t if UnsafeNonFatal(t) =>
                       error = t
                     case t: Throwable =>
                       onFatalFailure(t)
@@ -1039,7 +1038,7 @@ private final class IOFiber[A](
                 try {
                   cur.thunk()
                 } catch {
-                  case t if NonFatal(t) =>
+                  case t if UnsafeNonFatal(t) =>
                     error = t
                   case t: Throwable =>
                     onFatalFailure(t)
@@ -1216,7 +1215,7 @@ private final class IOFiber[A](
         val transformed =
           try f(result)
           catch {
-            case t if NonFatal(t) =>
+            case t if UnsafeNonFatal(t) =>
               error = t
             case t: Throwable =>
               onFatalFailure(t)
@@ -1235,7 +1234,7 @@ private final class IOFiber[A](
 
         try f(result)
         catch {
-          case t if NonFatal(t) =>
+          case t if UnsafeNonFatal(t) =>
             failed(t, depth + 1)
           case t: Throwable =>
             onFatalFailure(t)
@@ -1307,7 +1306,7 @@ private final class IOFiber[A](
 
         try f(error)
         catch {
-          case t if NonFatal(t) =>
+          case t if UnsafeNonFatal(t) =>
             failed(t, depth + 1)
           case t: Throwable =>
             onFatalFailure(t)
@@ -1427,7 +1426,7 @@ private final class IOFiber[A](
     val r =
       try cur.thunk()
       catch {
-        case t if NonFatal(t) =>
+        case t if UnsafeNonFatal(t) =>
           error = t
         case t: Throwable =>
           onFatalFailure(t)

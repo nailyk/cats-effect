@@ -24,7 +24,6 @@ import org.scalajs.macrotaskexecutor.MacrotaskExecutor
 import scala.collection.mutable
 import scala.concurrent.ExecutionContextExecutor
 import scala.scalajs.{js, LinkingInfo}
-import scala.util.control.NonFatal
 
 /**
  * An `ExecutionContext` that improves throughput by providing a method to `schedule` fibers to
@@ -65,7 +64,7 @@ private[effect] final class BatchingMacrotaskExecutor(
         val fiber = fibers.take()
         try fiber.run()
         catch {
-          case t if NonFatal(t) => reportFailure(t)
+          case t if UnsafeNonFatal(t) => reportFailure(t)
           case t: Throwable => IOFiber.onFatalFailure(t)
         }
         i += 1

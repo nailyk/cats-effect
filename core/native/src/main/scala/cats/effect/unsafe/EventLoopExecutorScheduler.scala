@@ -26,7 +26,6 @@ import scala.scalanative.meta.LinktimeInfo
 import scala.scalanative.posix.time._
 import scala.scalanative.posix.timeOps._
 import scala.scalanative.unsafe._
-import scala.util.control.NonFatal
 
 import java.util.{ArrayDeque, PriorityQueue}
 
@@ -96,7 +95,7 @@ private[effect] final class EventLoopExecutorScheduler[P](
         val task = sleepQueue.poll()
         try task.runnable.run()
         catch {
-          case t if NonFatal(t) => reportFailure(t)
+          case t if UnsafeNonFatal(t) => reportFailure(t)
           case t: Throwable => IOFiber.onFatalFailure(t)
         }
       }
@@ -107,7 +106,7 @@ private[effect] final class EventLoopExecutorScheduler[P](
         val runnable = executeQueue.poll()
         try runnable.run()
         catch {
-          case t if NonFatal(t) => reportFailure(t)
+          case t if UnsafeNonFatal(t) => reportFailure(t)
           case t: Throwable => IOFiber.onFatalFailure(t)
         }
         i += 1

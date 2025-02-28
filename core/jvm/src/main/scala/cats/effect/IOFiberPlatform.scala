@@ -16,7 +16,7 @@
 
 package cats.effect
 
-import scala.util.control.NonFatal
+import cats.effect.unsafe.UnsafeNonFatal
 
 import java.nio.channels.ClosedByInterruptException
 import java.util.{concurrent => juc}
@@ -68,7 +68,7 @@ private[effect] abstract class IOFiberPlatform[A] extends AtomicBoolean(false) {
                       case ex: ClosedByInterruptException => throw ex
 
                       // this won't suppress InterruptedException:
-                      case t if NonFatal(t) => Left(t)
+                      case t if UnsafeNonFatal(t) => Left(t)
                     }
 
                   // this is why it has to be a semaphore rather than an atomic boolean
