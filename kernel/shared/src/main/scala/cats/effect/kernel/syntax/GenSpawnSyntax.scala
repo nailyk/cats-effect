@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,10 +35,10 @@ trait GenSpawnSyntax {
 
 final class GenSpawnOps_[F[_], A] private[syntax] (private val wrapped: F[A]) extends AnyVal {
 
-  def race[B](another: F[B])(implicit F: GenSpawn[F, _]) =
+  def race[B](another: F[B])(implicit F: GenSpawn[F, ?]) =
     F.race(wrapped, another)
 
-  def both[B](another: F[B])(implicit F: GenSpawn[F, _]): F[(A, B)] =
+  def both[B](another: F[B])(implicit F: GenSpawn[F, ?]): F[(A, B)] =
     F.both(wrapped, another)
 }
 

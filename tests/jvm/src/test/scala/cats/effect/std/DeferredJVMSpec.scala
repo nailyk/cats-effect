@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -71,7 +71,7 @@ abstract class BaseDeferredJVMTests(parallelism: Int)
   val iterations = if (isCI) 1000 else 10000
   val timeout = if (isCI) 30.seconds else 10.seconds
 
-  def cleanupOnError[A](task: IO[A], f: FiberIO[_]) =
+  def cleanupOnError[A](task: IO[A], f: FiberIO[?]) =
     task guaranteeCase {
       case Outcome.Canceled() | Outcome.Errored(_) =>
         f.cancel

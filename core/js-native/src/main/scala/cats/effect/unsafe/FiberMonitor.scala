@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,7 +27,7 @@ private[effect] sealed abstract class FiberMonitor extends FiberMonitorShared {
    * @return
    *   a handle for deregistering the fiber on resumption
    */
-  def monitorSuspended(fiber: IOFiber[_]): WeakBag.Handle
+  def monitorSuspended(fiber: IOFiber[?]): WeakBag.Handle
 
   /**
    * Obtains a snapshot of the fibers currently live on the [[IORuntime]] which this fiber
@@ -44,13 +44,13 @@ private final class FiberMonitorImpl(
     // operates. `null` if the compute pool of the `IORuntime` is not a `FiberExecutor`.
     private[this] val compute: FiberExecutor
 ) extends FiberMonitor {
-  private[this] val bag = new WeakBag[IOFiber[_]]()
+  private[this] val bag = new WeakBag[IOFiber[?]]()
 
-  override def monitorSuspended(fiber: IOFiber[_]): WeakBag.Handle =
+  override def monitorSuspended(fiber: IOFiber[?]): WeakBag.Handle =
     bag.insert(fiber)
 
-  private[this] def foreignTraces(): Map[IOFiber[_], Trace] = {
-    val foreign = Map.newBuilder[IOFiber[_], Trace]
+  private[this] def foreignTraces(): Map[IOFiber[?], Trace] = {
+    val foreign = Map.newBuilder[IOFiber[?], Trace]
     bag.forEach(fiber =>
       if (!fiber.isDone) foreign += (fiber.asInstanceOf[IOFiber[Any]] -> fiber.captureTrace()))
     foreign.result()
@@ -88,7 +88,7 @@ private final class FiberMonitorImpl(
  * instances on Scala Native. This is used as a fallback.
  */
 private final class NoOpFiberMonitor extends FiberMonitor {
-  override def monitorSuspended(fiber: IOFiber[_]): WeakBag.Handle = () => ()
+  override def monitorSuspended(fiber: IOFiber[?]): WeakBag.Handle = () => ()
   def liveFiberSnapshot(print: String => Unit): Unit = ()
 }
 

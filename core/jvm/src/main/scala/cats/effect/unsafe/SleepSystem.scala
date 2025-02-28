@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -34,15 +34,17 @@ object SleepSystem extends PollingSystem {
 
   def closePoller(Poller: Poller): Unit = ()
 
-  def poll(poller: Poller, nanos: Long, reportFailure: Throwable => Unit): Boolean = {
+  def poll(poller: Poller, nanos: Long): PollResult = {
     if (nanos < 0)
       LockSupport.park()
     else if (nanos > 0)
       LockSupport.parkNanos(nanos)
     else
       ()
-    false
+    PollResult.Interrupted
   }
+
+  def processReadyEvents(poller: Poller): Boolean = false
 
   def needsPoll(poller: Poller): Boolean = false
 

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -43,7 +43,7 @@ import scala.concurrent.ExecutionContext
 private[effect] sealed class FiberMonitor(
     // A reference to the compute pool of the `IORuntime` in which this suspended fiber bag
     // operates. `null` if the compute pool of the `IORuntime` is not a `WorkStealingThreadPool`.
-    private[this] val compute: WorkStealingThreadPool[_]
+    private[this] val compute: WorkStealingThreadPool[?]
 ) extends FiberMonitorShared {
 
   private[this] final val BagReferences = new WeakList[WeakBag[Runnable]]
@@ -53,8 +53,8 @@ private[effect] sealed class FiberMonitor(
     bag
   }
 
-  private[this] val justFibers: PartialFunction[(Runnable, Trace), (IOFiber[_], Trace)] = {
-    case (fiber: IOFiber[_], trace) => fiber -> trace
+  private[this] val justFibers: PartialFunction[(Runnable, Trace), (IOFiber[?], Trace)] = {
+    case (fiber: IOFiber[?], trace) => fiber -> trace
   }
 
   /**
@@ -65,10 +65,10 @@ private[effect] sealed class FiberMonitor(
    * @return
    *   a handle for deregistering the fiber on resumption
    */
-  def monitorSuspended(fiber: IOFiber[_]): WeakBag.Handle = {
+  def monitorSuspended(fiber: IOFiber[?]): WeakBag.Handle = {
     val thread = Thread.currentThread()
-    if (thread.isInstanceOf[WorkerThread[_]]) {
-      val worker = thread.asInstanceOf[WorkerThread[_]]
+    if (thread.isInstanceOf[WorkerThread[?]]) {
+      val worker = thread.asInstanceOf[WorkerThread[?]]
       // Guard against tracking errors when multiple work stealing thread pools exist.
       if (worker.isOwnedBy(compute)) {
         worker.monitor(fiber)
@@ -114,8 +114,8 @@ private[effect] sealed class FiberMonitor(
           val externalFibers = external.collect(justFibers)
           val suspendedFibers = suspended.collect(justFibers)
           val workersMapping: Map[
-            WorkerThread[_],
-            (Thread.State, Option[(IOFiber[_], Trace)], Map[IOFiber[_], Trace])] =
+            WorkerThread[?],
+            (Thread.State, Option[(IOFiber[?], Trace)], Map[IOFiber[?], Trace])] =
             workers.map {
               case (thread, (state, opt, set)) =>
                 val filteredOpt = opt.collect(justFibers)
@@ -134,7 +134,7 @@ private[effect] sealed class FiberMonitor(
         // 3. Fibers from the foreign synchronized fallback weak GC maps
         // 4. Fibers from the suspended thread local GC maps
 
-        val localAndActive = workersMap.foldLeft(Map.empty[IOFiber[_], Trace]) {
+        val localAndActive = workersMap.foldLeft(Map.empty[IOFiber[?], Trace]) {
           case (acc, (_, (_, active, local))) =>
             (acc ++ local) ++ active.collect(justFibers)
         }
@@ -176,7 +176,7 @@ private[effect] sealed class FiberMonitor(
       }
     else ()
 
-  private[this] def monitorFallback(fiber: IOFiber[_]): WeakBag.Handle = {
+  private[this] def monitorFallback(fiber: IOFiber[?]): WeakBag.Handle = {
     val bag = Bags.get()
     val handle = bag.insert(fiber)
     bag.synchronizationPoint.lazySet(true)
@@ -192,13 +192,13 @@ private[effect] sealed class FiberMonitor(
    * @return
    *   a set of active fibers
    */
-  private[this] def foreignFibers(): Map[IOFiber[_], Trace] = {
-    val foreign = Map.newBuilder[IOFiber[_], Trace]
+  private[this] def foreignFibers(): Map[IOFiber[?], Trace] = {
+    val foreign = Map.newBuilder[IOFiber[?], Trace]
 
     BagReferences.foreach { bag =>
       val _ = bag.synchronizationPoint.get()
       bag.forEach {
-        case fiber: IOFiber[_] if !fiber.isDone =>
+        case fiber: IOFiber[?] if !fiber.isDone =>
           foreign += (fiber.asInstanceOf[IOFiber[Any]] -> fiber.captureTrace())
         case _ => ()
       }
@@ -210,14 +210,14 @@ private[effect] sealed class FiberMonitor(
 
 private[effect] final class NoOpFiberMonitor extends FiberMonitor(null) {
   private final val noop: WeakBag.Handle = () => ()
-  override def monitorSuspended(fiber: IOFiber[_]): WeakBag.Handle = noop
+  override def monitorSuspended(fiber: IOFiber[?]): WeakBag.Handle = noop
   override def liveFiberSnapshot(print: String => Unit): Unit = {}
 }
 
 private[effect] object FiberMonitor {
   def apply(compute: ExecutionContext): FiberMonitor = {
-    if (TracingConstants.isStackTracing && compute.isInstanceOf[WorkStealingThreadPool[_]]) {
-      val wstp = compute.asInstanceOf[WorkStealingThreadPool[_]]
+    if (TracingConstants.isStackTracing && compute.isInstanceOf[WorkStealingThreadPool[?]]) {
+      val wstp = compute.asInstanceOf[WorkStealingThreadPool[?]]
       new FiberMonitor(wstp)
     } else {
       new FiberMonitor(null)

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,7 +36,6 @@ import cats.effect.tracing.TracingConstants
 import scala.collection.mutable
 import scala.concurrent.ExecutionContextExecutor
 import scala.concurrent.duration.{Duration, FiniteDuration}
-import scala.util.control.NonFatal
 
 import java.time.Instant
 import java.time.temporal.ChronoField
@@ -75,7 +74,8 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
     private[unsafe] val blockedThreadDetectionEnabled: Boolean,
     shutdownTimeout: Duration,
     private[unsafe] val system: PollingSystem.WithPoller[P],
-    reportFailure0: Throwable => Unit
+    reportFailure0: Throwable => Unit,
+    private[unsafe] val uncaughtExceptionHandler: Thread.UncaughtExceptionHandler
 ) extends ExecutionContextExecutor
     with Scheduler
     with UnsealedPollingContext[P] {
@@ -105,7 +105,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
     // figure out where we are
     val thread = Thread.currentThread()
     val pool = WorkStealingThreadPool.this
-    if (thread.isInstanceOf[WorkerThread[_]]) {
+    if (thread.isInstanceOf[WorkerThread[?]]) {
       val worker = thread.asInstanceOf[WorkerThread[P]]
       if (worker.isOwnedBy(pool)) // we're good
         cb(worker.poller())
@@ -116,7 +116,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
 
   def ownPoller(poller: P): Boolean = {
     val thread = Thread.currentThread()
-    if (thread.isInstanceOf[WorkerThread[_]]) {
+    if (thread.isInstanceOf[WorkerThread[?]]) {
       val worker = thread.asInstanceOf[WorkerThread[P]]
       worker.ownsPoller(poller)
     } else false
@@ -165,6 +165,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
       val thread =
         new WorkerThread(
           index,
+          0,
           queue,
           parkedSignal,
           externalQueue,
@@ -173,6 +174,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
           system,
           poller,
           metrics,
+          new WorkerThread.TransferState,
           this)
 
       workerThreads.set(i, thread)
@@ -479,7 +481,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
     val pool = this
     val thread = Thread.currentThread()
 
-    if (thread.isInstanceOf[WorkerThread[_]]) {
+    if (thread.isInstanceOf[WorkerThread[?]]) {
       val worker = thread.asInstanceOf[WorkerThread[P]]
       if (worker.isOwnedBy(pool)) {
         worker.reschedule(runnable)
@@ -497,7 +499,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
    */
   private[effect] def canExecuteBlockingCode(): Boolean = {
     val thread = Thread.currentThread()
-    if (thread.isInstanceOf[WorkerThread[_]]) {
+    if (thread.isInstanceOf[WorkerThread[?]]) {
       val worker = thread.asInstanceOf[WorkerThread[P]]
       worker.canExecuteBlockingCodeOn(this)
     } else {
@@ -511,7 +513,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
    */
   private[effect] def prepareForBlocking(): Unit = {
     val thread = Thread.currentThread()
-    val worker = thread.asInstanceOf[WorkerThread[_]]
+    val worker = thread.asInstanceOf[WorkerThread[?]]
     worker.prepareForBlocking()
   }
 
@@ -593,7 +595,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
     val pool = this
     val thread = Thread.currentThread()
 
-    if (thread.isInstanceOf[WorkerThread[_]]) {
+    if (thread.isInstanceOf[WorkerThread[?]]) {
       val worker = thread.asInstanceOf[WorkerThread[P]]
       if (worker.isOwnedBy(pool)) {
         worker.schedule(runnable)
@@ -619,8 +621,8 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
     val back = System.nanoTime()
 
     val thread = Thread.currentThread()
-    if (thread.isInstanceOf[WorkerThread[_]]) {
-      thread.asInstanceOf[WorkerThread[_]].now = back
+    if (thread.isInstanceOf[WorkerThread[?]]) {
+      thread.asInstanceOf[WorkerThread[?]].now = back
     }
 
     back
@@ -640,7 +642,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
       delay: FiniteDuration,
       callback: Right[Nothing, Unit] => Unit): Function0[Unit] with Runnable = {
     val thread = Thread.currentThread()
-    if (thread.isInstanceOf[WorkerThread[_]]) {
+    if (thread.isInstanceOf[WorkerThread[?]]) {
       val worker = thread.asInstanceOf[WorkerThread[P]]
       if (worker.isOwnedBy(this)) {
         worker.sleep(delay, callback)
@@ -664,7 +666,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
     val cancel = new ExternalSleepCancel
 
     scheduleExternal { () =>
-      val worker = Thread.currentThread().asInstanceOf[WorkerThread[_]]
+      val worker = Thread.currentThread().asInstanceOf[WorkerThread[?]]
       cancel.setCallback(worker.sleepLate(scheduledAt, delay, callback))
     }
 
@@ -677,7 +679,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
         try {
           task.run()
         } catch {
-          case ex if NonFatal(ex) =>
+          case ex if UnsafeNonFatal(ex) =>
             reportFailure(ex)
         }
       }

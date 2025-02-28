@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -55,7 +55,7 @@ abstract class Mutex[F[_]] {
   /**
    * Modify the context `F` using natural transformation `f`.
    */
-  def mapK[G[_]](f: F ~> G)(implicit G: MonadCancel[G, _]): Mutex[G]
+  def mapK[G[_]](f: F ~> G)(implicit G: MonadCancel[G, ?]): Mutex[G]
 }
 
 object Mutex {
@@ -155,7 +155,7 @@ object Mutex {
     override final val lock: Resource[F, Unit] =
       Resource.makeFull[F, ConcurrentImpl.WaitingCell[F]](acquire)(release).void
 
-    override def mapK[G[_]](f: F ~> G)(implicit G: MonadCancel[G, _]): Mutex[G] =
+    override def mapK[G[_]](f: F ~> G)(implicit G: MonadCancel[G, ?]): Mutex[G] =
       new Mutex.TransformedMutex(this, f)
   }
 
@@ -175,12 +175,12 @@ object Mutex {
   private final class TransformedMutex[F[_], G[_]](
       underlying: Mutex[F],
       f: F ~> G
-  )(implicit F: MonadCancel[F, _], G: MonadCancel[G, _])
+  )(implicit F: MonadCancel[F, ?], G: MonadCancel[G, ?])
       extends Mutex[G] {
     override final val lock: Resource[G, Unit] =
       underlying.lock.mapK(f)
 
-    override def mapK[H[_]](f: G ~> H)(implicit H: MonadCancel[H, _]): Mutex[H] =
+    override def mapK[H[_]](f: G ~> H)(implicit H: MonadCancel[H, ?]): Mutex[H] =
       new Mutex.TransformedMutex(this, f)
   }
 }

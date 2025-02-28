@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -37,14 +37,15 @@ abstract class PollingExecutorScheduler(pollEvery: Int)
       def makeApi(ctx: PollingContext[Poller]): Api = outer
       def makePoller(): Poller = outer
       def closePoller(poller: Poller): Unit = ()
-      def poll(poller: Poller, nanos: Long, reportFailure: Throwable => Unit): Boolean = {
+      def poll(poller: Poller, nanos: Long): PollResult = {
         needsPoll =
           if (nanos == -1)
             poller.poll(Duration.Inf)
           else
             poller.poll(nanos.nanos)
-        true
+        PollResult.Complete
       }
+      def processReadyEvents(poller: Poller): Boolean = true
       def needsPoll(poller: Poller) = needsPoll
       def interrupt(targetThread: Thread, targetPoller: Poller): Unit = ()
       def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -24,7 +24,7 @@ private[tracing] abstract class TracingPlatform { self: Tracing.type =>
 
   import TracingConstants._
 
-  private[this] val cache = mutable.Map.empty[Class[_], TracingEvent].withDefaultValue(null)
+  private[this] val cache = mutable.Map.empty[Class[?], TracingEvent].withDefaultValue(null)
 
   def calculateTracingEvent(key: Any): TracingEvent =
     if (LinktimeInfo.debugMode) {

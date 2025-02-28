@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,6 +17,7 @@
 package cats.effect
 package unsafe
 
+import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, ExecutionContextExecutor}
 import scala.concurrent.duration._
 import scala.scalanative.libc.errno._
@@ -25,7 +26,6 @@ import scala.scalanative.meta.LinktimeInfo
 import scala.scalanative.posix.time._
 import scala.scalanative.posix.timeOps._
 import scala.scalanative.unsafe._
-import scala.util.control.NonFatal
 
 import java.util.{ArrayDeque, PriorityQueue}
 
@@ -95,7 +95,7 @@ private[effect] final class EventLoopExecutorScheduler[P](
         val task = sleepQueue.poll()
         try task.runnable.run()
         catch {
-          case t if NonFatal(t) => reportFailure(t)
+          case t if UnsafeNonFatal(t) => reportFailure(t)
           case t: Throwable => IOFiber.onFatalFailure(t)
         }
       }
@@ -106,7 +106,7 @@ private[effect] final class EventLoopExecutorScheduler[P](
         val runnable = executeQueue.poll()
         try runnable.run()
         catch {
-          case t if NonFatal(t) => reportFailure(t)
+          case t if UnsafeNonFatal(t) => reportFailure(t)
           case t: Throwable => IOFiber.onFatalFailure(t)
         }
         i += 1
@@ -127,9 +127,15 @@ private[effect] final class EventLoopExecutorScheduler[P](
        * the Scala Native global `ExecutionContext` which is currently hard-coded into every
        * test framework, including MUnit, specs2, and Weaver.
        */
-      if (system.needsPoll(poller) || timeout != -1)
-        system.poll(poller, timeout, reportFailure)
-      else ()
+      if (system.needsPoll(poller) || timeout != -1) {
+        @tailrec def loop(result: PollResult): Unit =
+          if (result ne PollResult.Interrupted) {
+            system.processReadyEvents(poller)
+            if (result eq PollResult.Incomplete) loop(system.poll(poller, 0))
+          }
+
+        loop(system.poll(poller, timeout))
+      }
 
       continue = !executeQueue.isEmpty() || !sleepQueue.isEmpty() || system.needsPoll(poller)
     }
@@ -154,10 +160,10 @@ private[effect] final class EventLoopExecutorScheduler[P](
 
   def shutdown(): Unit = system.close()
 
-  def liveTraces(): Map[IOFiber[_], Trace] = {
-    val builder = Map.newBuilder[IOFiber[_], Trace]
+  def liveTraces(): Map[IOFiber[?], Trace] = {
+    val builder = Map.newBuilder[IOFiber[?], Trace]
     executeQueue.forEach {
-      case f: IOFiber[_] => builder += f -> f.captureTrace()
+      case f: IOFiber[?] => builder += f -> f.captureTrace()
       case _ => ()
     }
     builder.result()

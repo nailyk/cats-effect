@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -32,7 +32,7 @@ class SyntaxSpec extends Specification {
     Semaphore[F](15)
   }
 
-  def genConcurrent[F[_]](implicit F: GenConcurrent[F, _]) = {
+  def genConcurrent[F[_]](implicit F: GenConcurrent[F, ?]) = {
     Ref.of[F, Int](0)
     Deferred[F, Unit]
   }

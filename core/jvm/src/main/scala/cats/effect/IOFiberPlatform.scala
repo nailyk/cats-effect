@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,7 +16,7 @@
 
 package cats.effect
 
-import scala.util.control.NonFatal
+import cats.effect.unsafe.UnsafeNonFatal
 
 import java.nio.channels.ClosedByInterruptException
 import java.util.{concurrent => juc}
@@ -68,7 +68,7 @@ private[effect] abstract class IOFiberPlatform[A] extends AtomicBoolean(false) {
                       case ex: ClosedByInterruptException => throw ex
 
                       // this won't suppress InterruptedException:
-                      case t if NonFatal(t) => Left(t)
+                      case t if UnsafeNonFatal(t) => Left(t)
                     }
 
                   // this is why it has to be a semaphore rather than an atomic boolean
