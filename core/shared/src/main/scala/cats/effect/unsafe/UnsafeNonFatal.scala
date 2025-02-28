@@ -41,4 +41,4 @@ private[effect] object UnsafeNonFatal {
   }
 }
 
-private[effect] class UnsafeNonFatal private ()
+private[effect] class UnsafeNonFatal
