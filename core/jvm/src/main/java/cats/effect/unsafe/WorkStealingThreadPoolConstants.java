@@ -43,8 +43,12 @@ final class WorkStealingThreadPoolConstants {
   /** Used for extracting the number of unparked threads. */
   static final int UnparkMask = ~SearchMask;
 
-  /** Used for checking for new fibers from the external queue every few iterations. */
-  static final int ExternalQueueTicks = 64;
+  /** Used for checking sources of external work every few iterations. */
+  static final int ExternalWorkTicks = 32;
 
-  static final int ExternalQueueTicksMask = ExternalQueueTicks - 1;
+  static final int ExternalWorkTicksMask = ExternalWorkTicks - 1;
+
+  static final int PollingTicks = 2 * ExternalWorkTicks;
+
+  static final int PollingTicksMask = PollingTicks - 1;
 }
