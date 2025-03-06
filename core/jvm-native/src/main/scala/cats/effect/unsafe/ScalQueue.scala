@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -104,7 +104,7 @@ private[effect] final class ScalQueue[A <: AnyRef](threadCount: Int) {
    * @param random
    *   an uncontended source of randomness, used for randomly choosing a destination queue
    */
-  def offerAll(as: Array[_ <: A], random: ThreadLocalRandom): Unit = {
+  def offerAll(as: Array[? <: A], random: ThreadLocalRandom): Unit = {
     val nq = numQueues
     val len = as.length
     var i = 0

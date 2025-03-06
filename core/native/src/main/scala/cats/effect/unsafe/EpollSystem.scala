@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,14 +23,13 @@ import cats.syntax.all._
 
 import org.typelevel.scalaccompat.annotation._
 
-import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
 import scala.scalanative.annotation.alwaysinline
 import scala.scalanative.meta.LinktimeInfo
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.string._
 import scala.scalanative.posix.unistd
-import scala.scalanative.runtime._
+import scala.scalanative.runtime.{Array => _, _}
 import scala.scalanative.unsafe._
 import scala.scalanative.unsigned._
 
@@ -59,8 +58,11 @@ object EpollSystem extends PollingSystem {
 
   def closePoller(poller: Poller): Unit = poller.close()
 
-  def poll(poller: Poller, nanos: Long, reportFailure: Throwable => Unit): Boolean =
+  def poll(poller: Poller, nanos: Long): PollResult =
     poller.poll(nanos)
+
+  def processReadyEvents(poller: Poller): Boolean =
+    poller.processReadyEvents()
 
   def needsPoll(poller: Poller): Boolean = poller.needsPoll()
 
@@ -183,6 +185,10 @@ object EpollSystem extends PollingSystem {
     private[this] val handles: TrieMap[PollHandle, Unit] =
       new TrieMap
 
+    private[this] val eventsArray = new Array[Byte](sizeof[epoll_event].toInt * MaxEvents)
+    @inline private[this] def events = eventsArray.atUnsafe(0).asInstanceOf[Ptr[epoll_event]]
+    private[this] var readyEventCount: Int = 0
+
     private[this] val interruptFd: Int = {
       val fd = eventfd.eventfd(0, eventfd.EFD_NONBLOCK | eventfd.EFD_CLOEXEC)
       if (fd == -1) {
@@ -199,61 +205,53 @@ object EpollSystem extends PollingSystem {
 
     private[EpollSystem] def close(): Unit = {
       try {
-        if (unistd.close(epfd) != 0)
+        if (unistd.close(interruptFd) != 0)
           throw new IOException(fromCString(strerror(errno)))
       } finally {
-        if (unistd.close(interruptFd) != 0) {
+        if (unistd.close(epfd) != 0)
           throw new IOException(fromCString(strerror(errno)))
-        }
       }
     }
 
-    private[EpollSystem] def poll(timeout: Long): Boolean = {
-
-      val events =
-        stackalloc[Byte](MaxEvents * epoll_eventTag.size).asInstanceOf[Ptr[epoll_event]]
-      var polled = false
-
-      @tailrec
-      def processEvents(timeout: Int): Unit = {
-
-        val triggeredEvents =
-          if (timeout == 0)
-            immediate.epoll_wait(epfd, events, MaxEvents, timeout)
-          else
-            awaiting.epoll_wait(epfd, events, MaxEvents, timeout)
-
-        if (triggeredEvents >= 0) {
-          polled = true
-
-          var i = 0
-          while (i < triggeredEvents) {
-            val event = events + i.toLong
-            val handle = fromPtr(event.data)
-            if (handle ne null) {
-              handle.notify(event.events.toInt)
-            } else {
-              val buf = stackalloc[CUnsignedInt]()
-              if (unistd.read(interruptFd, buf, 8.toCSize) == -1) {
-                throw new IOException(fromCString(strerror(errno)))
-              }
-            }
-            i += 1
-          }
-        } else if (errno != EINTR) { // spurious wake-up by signal
-          throw new IOException(fromCString(strerror(errno)))
-        }
-
-        if (triggeredEvents >= MaxEvents)
-          processEvents(0) // drain the ready list
-        else
-          ()
-      }
+    private[EpollSystem] def poll(timeout: Long): PollResult = {
 
       val timeoutMillis = if (timeout == -1) -1 else (timeout / 1000000).toInt
-      processEvents(timeoutMillis)
+      val rtn =
+        if (timeoutMillis == 0)
+          immediate.epoll_wait(epfd, events, MaxEvents, timeoutMillis)
+        else
+          awaiting.epoll_wait(epfd, events, MaxEvents, timeoutMillis)
+      if (rtn >= 0) {
+        readyEventCount = rtn
+        if (rtn > 0) {
+          if (rtn < MaxEvents) PollResult.Complete else PollResult.Incomplete
+        } else PollResult.Interrupted
+      } else if (errno == EINTR) { // spurious wake-up by signal
+        PollResult.Interrupted
+      } else {
+        throw new IOException(fromCString(strerror(errno)))
+      }
+    }
 
-      polled
+    private[EpollSystem] def processReadyEvents(): Boolean = {
+      var fibersRescheduled = false
+      var i = 0
+      while (i < readyEventCount) {
+        val event = events + i.toLong
+        val handle = fromPtr(event.data)
+        if (handle ne null) {
+          handle.notify(event.events.toInt)
+          fibersRescheduled = true
+        } else {
+          val buf = stackalloc[CUnsignedInt]()
+          if (unistd.read(interruptFd, buf, 8.toCSize) == -1) {
+            throw new IOException(fromCString(strerror(errno)))
+          }
+        }
+        i += 1
+      }
+      readyEventCount = 0
+      fibersRescheduled
     }
 
     private[EpollSystem] def needsPoll(): Boolean = !handles.isEmpty

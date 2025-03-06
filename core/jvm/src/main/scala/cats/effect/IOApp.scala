@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,11 +19,11 @@ package cats.effect
 import cats.effect.metrics.{CpuStarvationWarningMetrics, JvmCpuStarvationMetrics}
 import cats.effect.std.Console
 import cats.effect.tracing.TracingConstants._
+import cats.effect.unsafe.UnsafeNonFatal
 import cats.syntax.all._
 
 import scala.concurrent.{blocking, CancellationException, ExecutionContext}
 import scala.concurrent.duration._
-import scala.util.control.NonFatal
 
 import java.util.concurrent.{ArrayBlockingQueue, CountDownLatch}
 import java.util.concurrent.atomic.AtomicInteger
@@ -193,6 +193,11 @@ trait IOApp {
   // arbitrary constant is arbitrary
   private[this] lazy val queue = new ArrayBlockingQueue[AnyRef](32)
 
+  private[this] def handleTerminalFailure(t: Throwable): Unit = {
+    queue.clear()
+    queue.put(t)
+  }
+
   /**
    * Executes the provided actions on the JVM's `main` thread. Note that this is, by definition,
    * a single-threaded executor, and should not be used for anything which requires a meaningful
@@ -213,13 +218,11 @@ trait IOApp {
       new ExecutionContext {
         def reportFailure(t: Throwable): Unit =
           t match {
-            case t if NonFatal(t) =>
+            case t if UnsafeNonFatal(t) =>
               IOApp.this.reportFailure(t).unsafeRunAndForgetWithoutCallback()(runtime)
 
             case t =>
-              runtime.shutdown()
-              queue.clear()
-              queue.put(t)
+              handleTerminalFailure(t)
           }
 
         def execute(r: Runnable): Unit =
@@ -393,7 +396,8 @@ trait IOApp {
             threads = computeWorkerThreadCount,
             reportFailure = t => reportFailure(t).unsafeRunAndForgetWithoutCallback()(runtime),
             blockedThreadDetectionEnabled = blockedThreadDetectionEnabled,
-            pollingSystem = pollingSystem
+            pollingSystem = pollingSystem,
+            uncaughtExceptionHandler = (_, t) => handleTerminalFailure(t)
           )
 
         val (blocking, blockDown) =
@@ -504,7 +508,7 @@ trait IOApp {
 
       // Clean up after ourselves, relevant for running IOApps in sbt,
       // otherwise scheduler threads will accumulate over time.
-      runtime.shutdown()
+      if (!isForked) runtime.shutdown()
     }
 
     val hook = new Thread(() => handleShutdown())
@@ -527,7 +531,7 @@ trait IOApp {
           case ec: ExitCode =>
             // Clean up after ourselves, relevant for running IOApps in sbt,
             // otherwise scheduler threads will accumulate over time.
-            runtime.shutdown()
+            if (!isForked) runtime.shutdown()
             if (ec == ExitCode.Success) {
               // Return naturally from main. This allows any non-daemon
               // threads to gracefully complete their work, and managed
@@ -551,7 +555,7 @@ trait IOApp {
               throw e
 
           case t: Throwable =>
-            if (NonFatal(t)) {
+            if (UnsafeNonFatal(t)) {
               if (isForked) {
                 t.printStackTrace()
                 System.exit(1)
@@ -567,13 +571,8 @@ trait IOApp {
             try {
               r.run()
             } catch {
-              case t if NonFatal(t) =>
-                if (isForked) {
-                  t.printStackTrace()
-                  System.exit(1)
-                } else {
-                  throw t
-                }
+              case t if UnsafeNonFatal(t) =>
+                IOApp.this.reportFailure(t).unsafeRunAndForgetWithoutCallback()(runtime)
 
               case t: Throwable =>
                 t.printStackTrace()

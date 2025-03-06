@@ -49,9 +49,14 @@ private object WorkStealingThreadPoolConstants {
   val UnparkMask: Int = ~SearchMask
 
   /**
-   * Used for checking for new fibers from the external queue every few iterations.
+   * Used for checking sources of external work every few iterations.
    */
-  val ExternalQueueTicks: Int = 64
+  val ExternalWorkTicks: Int = 32
 
-  val ExternalQueueTicksMask: Int = ExternalQueueTicks - 1
+  val ExternalWorkTicksMask: Int = ExternalWorkTicks - 1
+
+  val PollingTicks: Int = 2 * ExternalWorkTicks
+
+  val PollingTicksMask: Int = PollingTicks - 1
+
 }

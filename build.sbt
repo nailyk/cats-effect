@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -110,12 +110,13 @@ ThisBuild / developers := List(
 )
 
 val PrimaryOS = "ubuntu-latest"
+val ArmOS = "ubuntu-22.04-arm"
 val Windows = "windows-latest"
 val MacOS = "macos-14"
 
 val Scala212 = "2.12.20"
-val Scala213 = "2.13.15"
-val Scala3 = "3.3.4"
+val Scala213 = "2.13.16"
+val Scala3 = "3.3.5"
 
 ThisBuild / crossScalaVersions := Seq(Scala3, Scala212, Scala213)
 ThisBuild / githubWorkflowScalaVersions := crossScalaVersions.value
@@ -148,7 +149,7 @@ ThisBuild / githubWorkflowJavaVersions := Seq(
   LatestJava,
   LoomJava,
   GraalVM)
-ThisBuild / githubWorkflowOSes := Seq(PrimaryOS, Windows, MacOS)
+ThisBuild / githubWorkflowOSes := Seq(PrimaryOS, ArmOS, Windows, MacOS)
 
 ThisBuild / githubWorkflowBuildPreamble ++= Seq(
   WorkflowStep.Use(
@@ -229,12 +230,20 @@ ThisBuild / githubWorkflowBuildMatrixExclusions := {
     if !(scala == Scala3 && java == LatestJava)
   } yield MatrixExclude(Map("scala" -> scala, "java" -> java.render))
 
+  val armFilters =
+    (ThisBuild / githubWorkflowJavaVersions).value.filterNot(Set(LatestJava)).map { java =>
+      MatrixExclude(Map("os" -> ArmOS, "java" -> java.render))
+    }
+
   val windowsAndMacScalaFilters =
     (ThisBuild / githubWorkflowScalaVersions).value.filterNot(Set(Scala213)).flatMap { scala =>
       Seq(
         MatrixExclude(Map("os" -> Windows, "scala" -> scala, "ci" -> CI.JVM.command)),
         MatrixExclude(Map("os" -> MacOS, "scala" -> scala, "ci" -> CI.JVM.command)))
-    } :+ MatrixExclude(Map("os" -> MacOS, "java" -> OldGuardJava.render))
+    } ++ Seq(
+      MatrixExclude(Map("os" -> MacOS, "java" -> OldGuardJava.render)),
+      MatrixExclude(Map("os" -> MacOS, "java" -> LTSJava.render))
+    )
 
   val jsScalaFilters = for {
     scala <- (ThisBuild / githubWorkflowScalaVersions).value.filterNot(Set(Scala213))
@@ -247,9 +256,12 @@ ThisBuild / githubWorkflowBuildMatrixExclusions := {
         MatrixExclude(Map("ci" -> ci, "java" -> java.render))
       }
 
-    javaFilters ++ Seq(
-      MatrixExclude(Map("os" -> Windows, "ci" -> ci)),
-      MatrixExclude(Map("os" -> MacOS, "ci" -> ci)))
+    val osFilters =
+      (ThisBuild / githubWorkflowOSes).value.tail.map { os =>
+        MatrixExclude(Map("os" -> os, "ci" -> ci))
+      }
+
+    javaFilters ++ osFilters
   }
 
   val nativeJavaAndOSFilters = {
@@ -258,16 +270,19 @@ ThisBuild / githubWorkflowBuildMatrixExclusions := {
     val javaFilters = for {
       java <- (ThisBuild / githubWorkflowJavaVersions).value.filterNot(Set(ScalaNativeJava))
       os <- (ThisBuild / githubWorkflowOSes).value
-      if !(os == MacOS && java == LatestJava)
+      if !(Set(ArmOS, MacOS).contains(os) && java == LatestJava)
     } yield MatrixExclude(Map("ci" -> ci, "java" -> java.render, "os" -> os))
 
-    javaFilters ++ Seq(
+    val osFilters = Seq(
+      MatrixExclude(Map("os" -> ArmOS, "ci" -> ci, "scala" -> Scala212)),
       MatrixExclude(Map("os" -> Windows, "ci" -> ci)),
       MatrixExclude(Map("os" -> MacOS, "ci" -> ci, "scala" -> Scala212))
     )
+
+    javaFilters ++ osFilters
   }
 
-  scalaJavaFilters ++ windowsAndMacScalaFilters ++ jsScalaFilters ++ jsJavaAndOSFilters ++ nativeJavaAndOSFilters
+  scalaJavaFilters ++ armFilters ++ windowsAndMacScalaFilters ++ jsScalaFilters ++ jsJavaAndOSFilters ++ nativeJavaAndOSFilters
 }
 
 lazy val useJSEnv =
@@ -302,12 +317,15 @@ ThisBuild / apiURL := Some(url("https://typelevel.org/cats-effect/api/3.x/"))
 
 ThisBuild / autoAPIMappings := true
 
+ThisBuild / Test / testOptions += Tests.Argument("+l")
+
 val CatsVersion = "2.12.0"
 val CatsMtlVersion = "1.5.0"
-val Specs2Version = "4.20.9"
 val ScalaCheckVersion = "1.18.1"
-val DisciplineVersion = "1.5.0"
 val CoopVersion = "1.3.0"
+val MUnitVersion = "1.1.0"
+val MUnitScalaCheckVersion = "1.1.0"
+val DisciplineMUnitVersion = "2.0.0"
 
 val MacrotaskExecutorVersion = "1.1.1"
 
@@ -396,8 +414,7 @@ lazy val kernel = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-kernel",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core" % CatsVersion,
-      "org.specs2" %%% "specs2-core" % Specs2Version % Test
+      "org.typelevel" %%% "cats-core" % CatsVersion
     ),
     mimaBinaryIssueFilters ++= Seq(
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.kernel.Ref$SyncRef"),
@@ -453,7 +470,7 @@ lazy val laws = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     name := "cats-effect-laws",
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-laws" % CatsVersion,
-      "org.typelevel" %%% "discipline-specs2" % DisciplineVersion % Test)
+      "org.typelevel" %%% "discipline-munit" % DisciplineMUnitVersion % Test)
   )
 
 /**
@@ -908,8 +925,7 @@ lazy val testkit = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-testkit",
     libraryDependencies ++= Seq(
-      "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion,
-      "org.specs2" %%% "specs2-core" % Specs2Version % Test
+      "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion
     )
   )
 
@@ -924,8 +940,9 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
     name := "cats-effect-tests",
     libraryDependencies ++= Seq(
       "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion,
-      "org.specs2" %%% "specs2-scalacheck" % Specs2Version % Test,
-      "org.typelevel" %%% "discipline-specs2" % DisciplineVersion % Test,
+      "org.scalameta" %%% "munit" % MUnitVersion % Test,
+      "org.scalameta" %%% "munit-scalacheck" % MUnitScalaCheckVersion % Test,
+      "org.typelevel" %%% "discipline-munit" % DisciplineMUnitVersion % Test,
       "org.typelevel" %%% "cats-kernel-laws" % CatsVersion % Test,
       "org.typelevel" %%% "cats-mtl-laws" % CatsMtlVersion % Test
     ),
@@ -955,7 +972,7 @@ def configureIOAppTests(p: Project): Project =
   p.enablePlugins(NoPublishPlugin, BuildInfoPlugin)
     .settings(
       Test / unmanagedSourceDirectories += (LocalRootProject / baseDirectory).value / "ioapp-tests" / "src" / "test" / "scala",
-      libraryDependencies += "org.specs2" %%% "specs2-core" % Specs2Version % Test,
+      libraryDependencies += "org.scalameta" %%% "munit" % MUnitVersion % Test,
       buildInfoPackage := "cats.effect",
       buildInfoKeys ++= Seq(
         "jsRunner" -> (tests.js / Compile / fastOptJS / artifactPath).value,
@@ -1003,8 +1020,7 @@ lazy val std = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-std",
     libraryDependencies ++= Seq(
-      "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion % Test,
-      "org.specs2" %%% "specs2-scalacheck" % Specs2Version % Test
+      "org.scalameta" %%% "munit" % MUnitVersion % Test
     ),
     mimaBinaryIssueFilters ++= {
       if (tlIsScala3.value) {

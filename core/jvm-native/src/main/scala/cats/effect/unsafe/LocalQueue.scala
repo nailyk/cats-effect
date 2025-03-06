@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -72,8 +72,8 @@ import java.util.concurrent.ThreadLocalRandom
  * (unavoidable when reading a `volatile` field or using
  * [[java.util.concurrent.atomic.AtomicInteger#get]]).
  *
- * 2. Loads with ''acquire'' memory semantics are achieved on the JVM either by a direct load of
- * a `volatile` field or by using [[java.util.concurrent.atomic.AtomicInteger#get]].
+ *   2. Loads with ''acquire'' memory semantics are achieved on the JVM either by a direct load
+ *      of a `volatile` field or by using [[java.util.concurrent.atomic.AtomicInteger#get]].
  *
  * The `head` of the queue is '''always''' loaded using ''acquire'' memory semantics and stored
  * using compare-and-swap operations which provide (among other properties) ''release'' memory
@@ -88,29 +88,31 @@ import java.util.concurrent.ThreadLocalRandom
  * following amazing resource on the
  * [[http://gee.cs.oswego.edu/dl/html/j9mm.html#plainsec Java 9+ memory model]].
  *
- * 3. Stores with ''release'' memory semantics are achieved on the JVM using the
- * [[java.util.concurrent.atomic.AtomicInteger#lazySet]] operation. Prior to Java 9, this is a
- * unique, underdocumented and often misunderstood operation. It is a `volatile` write without a
- * full memory fence, allowing for much higher throughput under heavy contention, provided that
- * it is used in a single producer environment, such as this queue. The value of the `tail`
- * published using ''release'' semantics can be properly detected by other threads using loads
- * with ''acquire'' memory semantics, which is always the case whenever non-owner
- * [[WorkerThread]] s load the value of the tail of another [[WorkerThread]] 's local queue. All
- * of the credit for this invaluable discovery goes to Nitsan Wakart and their phenomenal
- * [[http://psy-lob-saw.blogspot.com/2012/12/atomiclazyset-is-performance-win-for.html blog post]].
+ *   3. Stores with ''release'' memory semantics are achieved on the JVM using the
+ *      [[java.util.concurrent.atomic.AtomicInteger#lazySet]] operation. Prior to Java 9, this
+ *      is a unique, underdocumented and often misunderstood operation. It is a `volatile` write
+ *      without a full memory fence, allowing for much higher throughput under heavy contention,
+ *      provided that it is used in a single producer environment, such as this queue. The value
+ *      of the `tail` published using ''release'' semantics can be properly detected by other
+ *      threads using loads with ''acquire'' memory semantics, which is always the case whenever
+ *      non-owner [[WorkerThread]] s load the value of the tail of another [[WorkerThread]] 's
+ *      local queue. All of the credit for this invaluable discovery goes to Nitsan Wakart and
+ *      their phenomenal
+ *      [[http://psy-lob-saw.blogspot.com/2012/12/atomiclazyset-is-performance-win-for.html blog post]].
  *
  * The post also contains more details on the fascinating history of
  * [[java.util.concurrent.atomic.AtomicInteger#lazySet]], with comments and quotes from Doug
  * Lea.
  *
- * 4. Even though usage of `sun.misc.Unsafe` in these classes was heavily experimented with, it
- * was decided to ultimately settle on standard Java APIs. We believe that being a good JVM
- * citizen (using official APIs), making it easier for users to create GraalVM native images and
- * having generally more maintainable code vastly outweigh the marginal improvements to
- * performance that `Unsafe` would bring. The inherent contention that arises under thread
- * synchronization in the multi-threaded cats-effect runtime is still much more costly such that
- * the performance gains with `Unsafe` pale in comparison. We have found that algorithm
- * improvements and smarter data structures bring much larger performance gains.
+ *   4. Even though usage of `sun.misc.Unsafe` in these classes was heavily experimented with,
+ *      it was decided to ultimately settle on standard Java APIs. We believe that being a good
+ *      JVM citizen (using official APIs), making it easier for users to create GraalVM native
+ *      images and having generally more maintainable code vastly outweigh the marginal
+ *      improvements to performance that `Unsafe` would bring. The inherent contention that
+ *      arises under thread synchronization in the multi-threaded cats-effect runtime is still
+ *      much more costly such that the performance gains with `Unsafe` pale in comparison. We
+ *      have found that algorithm improvements and smarter data structures bring much larger
+ *      performance gains.
  *
  * Should a discovery be made which proves that direct usage of `Unsafe` brings dramatic
  * improvements in performance, this decision to not use it might be reversed. This is however,
@@ -175,10 +177,8 @@ private final class LocalQueue extends LocalQueuePadding {
    *   1. There is enough free capacity in this queue, taking care to account for a competing
    *      thread which is concurrently stealing from this queue, in which case the fiber will be
    *      added to the back of the queue.
-   *
    *   1. There is not enough free capacity and some other thread is concurrently stealing from
    *      this queue, in which case the fiber will be enqueued on the `external` queue.
-   *
    *   1. There is not enough free capacity in this queue and no other thread is stealing from
    *      it, in which case, half of this queue, including the new fiber will be offloaded to
    *      the `batched` queue as a bulk operation.
@@ -326,7 +326,7 @@ private final class LocalQueue extends LocalQueuePadding {
    * @return
    *   a fiber to be executed directly
    */
-  def enqueueBatch(batch: Array[Runnable], worker: WorkerThread[_]): Runnable = {
+  def enqueueBatch(batch: Array[Runnable], worker: WorkerThread[?]): Runnable = {
     // A plain, unsynchronized load of the tail of the local queue.
     val tl = tail
 
@@ -400,7 +400,7 @@ private final class LocalQueue extends LocalQueuePadding {
    *   the fiber at the head of the queue, or `null` if the queue is empty (in order to avoid
    *   unnecessary allocations)
    */
-  def dequeue(worker: WorkerThread[_]): Runnable = {
+  def dequeue(worker: WorkerThread[?]): Runnable = {
     // A plain, unsynchronized load of the tail of the local queue.
     val tl = tail
 
@@ -484,7 +484,7 @@ private final class LocalQueue extends LocalQueuePadding {
    *   a reference to the first fiber to be executed by the stealing [[WorkerThread]], or `null`
    *   if the stealing was unsuccessful
    */
-  def stealInto(dst: LocalQueue, dstWorker: WorkerThread[_]): Runnable = {
+  def stealInto(dst: LocalQueue, dstWorker: WorkerThread[?]): Runnable = {
     // A plain, unsynchronized load of the tail of the destination queue, owned
     // by the executing thread.
     val dstTl = dst.tail

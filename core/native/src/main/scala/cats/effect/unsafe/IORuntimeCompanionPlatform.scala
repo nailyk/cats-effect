@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -35,8 +35,10 @@ private[unsafe] abstract class IORuntimeCompanionPlatform { this: IORuntime.type
       reportFailure: Throwable => Unit = _.printStackTrace(),
       blockedThreadDetectionEnabled: Boolean = false,
       shutdownTimeout: Duration = 1.second,
-      pollingSystem: PollingSystem = createDefaultPollingSystem())
-      : (WorkStealingThreadPool[_], pollingSystem.Api, () => Unit) = {
+      pollingSystem: PollingSystem = createDefaultPollingSystem(),
+      uncaughtExceptionHandler: Thread.UncaughtExceptionHandler = (_, ex) =>
+        ex.printStackTrace()
+  ): (WorkStealingThreadPool[?], pollingSystem.Api, () => Unit) = {
 
     val threadPool =
       new WorkStealingThreadPool[pollingSystem.Poller](
@@ -47,7 +49,8 @@ private[unsafe] abstract class IORuntimeCompanionPlatform { this: IORuntime.type
         blockedThreadDetectionEnabled && (threads > 1),
         shutdownTimeout,
         pollingSystem,
-        reportFailure
+        reportFailure,
+        uncaughtExceptionHandler
       )
 
     (threadPool, pollingSystem.makeApi(threadPool), { () => threadPool.shutdown() })

@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,15 +18,17 @@ package cats.effect
 
 import cats.effect.unsafe.{IORuntime, IORuntimeConfig}
 
-import org.specs2.specification.BeforeAfterAll
+import scala.concurrent.ExecutionContext
 
-trait RunnersPlatform extends BeforeAfterAll {
+trait RunnersPlatform { self: munit.Suite =>
 
   private[this] var runtime0: IORuntime = _
 
+  override def munitExecutionContext: ExecutionContext = ExecutionContext.global
+
   protected def runtime(): IORuntime = runtime0
 
-  def beforeAll(): Unit = {
+  override def beforeAll(): Unit = {
     val (blocking, blockDown) =
       IORuntime.createDefaultBlockingExecutionContext(threadPrefix =
         s"io-blocking-${getClass.getName}")
@@ -48,5 +50,5 @@ trait RunnersPlatform extends BeforeAfterAll {
     )
   }
 
-  def afterAll(): Unit = runtime().shutdown()
+  override def afterAll(): Unit = runtime().shutdown()
 }

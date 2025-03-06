@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -50,7 +50,7 @@ import cats.effect.std.{
   UUIDGen
 }
 import cats.effect.tracing.{Tracing, TracingEvent}
-import cats.effect.unsafe.IORuntime
+import cats.effect.unsafe.{IORuntime, UnsafeNonFatal}
 import cats.syntax._
 import cats.syntax.all._
 
@@ -58,7 +58,6 @@ import scala.annotation.unchecked.uncheckedVariance
 import scala.concurrent._
 import scala.concurrent.duration._
 import scala.util.{Failure, Success, Try}
-import scala.util.control.NonFatal
 
 import java.util.UUID
 import java.util.concurrent.Executor
@@ -1014,7 +1013,7 @@ sealed abstract class IO[+A] private () extends IOPlatform[A] {
     unsafeRunFiber(
       cb(Left(new CancellationException("The fiber was canceled"))),
       t => {
-        if (!NonFatal(t)) {
+        if (!UnsafeNonFatal(t)) {
           t.printStackTrace()
         }
         cb(Left(t))
@@ -1027,7 +1026,7 @@ sealed abstract class IO[+A] private () extends IOPlatform[A] {
     unsafeRunFiber(
       cb(Outcome.canceled),
       t => {
-        if (!NonFatal(t)) {
+        if (!UnsafeNonFatal(t)) {
           t.printStackTrace()
         }
         cb(Outcome.errored(t))
@@ -1050,7 +1049,7 @@ sealed abstract class IO[+A] private () extends IOPlatform[A] {
     val _ = unsafeRunFiber(
       (),
       t => {
-        if (NonFatal(t)) {
+        if (UnsafeNonFatal(t)) {
           if (runtime.config.reportUnhandledFiberErrors)
             runtime.compute.reportFailure(t)
         } else { t.printStackTrace() }
@@ -1310,7 +1309,7 @@ object IO extends IOCompanionPlatform with IOLowPriorityImplicits with TuplePara
    * The effect returns `Either[Option[IO[Unit]], A]` where:
    *   - right side `A` is an immediate result of computation (callback invocation will be
    *     dropped);
-   *   - left side `Option[IO[Unit]] `is an optional finalizer to be run in the event that the
+   *   - left side `Option[IO[Unit]]` is an optional finalizer to be run in the event that the
    *     fiber running `asyncCheckAttempt(k)` is canceled.
    *
    * For example, here is a simplified version of `IO.fromCompletableFuture`:
@@ -2268,7 +2267,7 @@ object IO extends IOCompanionPlatform with IOLowPriorityImplicits with TuplePara
   }
   private[effect] object Uncancelable {
     // INTERNAL, it's only created by the runloop itself during the execution of `Uncancelable`
-    final case class UnmaskRunLoop[+A](ioa: IO[A], id: Int, self: IOFiber[_]) extends IO[A] {
+    final case class UnmaskRunLoop[+A](ioa: IO[A], id: Int, self: IOFiber[?]) extends IO[A] {
       def tag = 13
     }
   }

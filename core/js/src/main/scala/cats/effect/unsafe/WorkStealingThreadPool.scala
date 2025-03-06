@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -44,8 +44,8 @@ private[effect] sealed abstract class WorkStealingThreadPool[P] private ()
 }
 
 private[effect] sealed abstract class WorkerThread[P] private () extends Thread {
-  private[unsafe] def isOwnedBy(threadPool: WorkStealingThreadPool[_]): Boolean
+  private[unsafe] def isOwnedBy(threadPool: WorkStealingThreadPool[?]): Boolean
   private[unsafe] def monitor(fiber: Runnable): WeakBag.Handle
   private[unsafe] def index: Int
-  private[effect] var currentIOFiber: IOFiber[_]
+  private[effect] var currentIOFiber: IOFiber[?]
 }

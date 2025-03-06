@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,6 @@ import cats.syntax.all._
 
 import org.typelevel.scalaccompat.annotation._
 
-import scala.annotation.tailrec
 import scala.collection.concurrent.TrieMap
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.string._
@@ -58,8 +57,11 @@ object KqueueSystem extends PollingSystem {
 
   def closePoller(poller: Poller): Unit = poller.close()
 
-  def poll(poller: Poller, nanos: Long, reportFailure: Throwable => Unit): Boolean =
+  def poll(poller: Poller, nanos: Long): PollResult =
     poller.poll(nanos)
+
+  def processReadyEvents(poller: Poller): Boolean =
+    poller.processReadyEvents()
 
   def needsPoll(poller: Poller): Boolean =
     poller.needsPoll()
@@ -138,17 +140,16 @@ object KqueueSystem extends PollingSystem {
 
   final class Poller private[KqueueSystem] (kqfd: Int) {
 
-    // this exists to buffer reduce our syscall burden by up to 1/64
-    // the buffer accumulates and is passed to kevent64 when we do our periodic poll
-    private[this] val changelistArray = new Array[Byte](MaxEvents * sizeof_kevent64_s)
-    @inline private[this] def changelist: Ptr[kevent64_s] =
-      changelistArray.atUnsafe(0).asInstanceOf[Ptr[kevent64_s]]
+    private[this] val buffer = new Array[Byte](MaxEvents * sizeof_kevent64_s)
+    @inline private[this] def eventlist =
+      buffer.atUnsafe(0).asInstanceOf[Ptr[kevent64_s]]
     private[this] var changeCount = 0
+    private[this] var readyEventCount = 0
 
     private[this] val callbacks = new TrieMap[Long, Either[Throwable, Unit] => Unit]()
 
     {
-      val event = changelist
+      val event = eventlist
 
       event.ident = 0.toUInt
       event.filter = EVFILT_USER
@@ -165,11 +166,11 @@ object KqueueSystem extends PollingSystem {
         flags: CUnsignedShort,
         cb: Either[Throwable, Unit] => Unit
     ): Unit = {
-      val change = changelist + changeCount.toLong
+      val event = eventlist + changeCount.toLong
 
-      change.ident = ident.toUSize
-      change.filter = filter
-      change.flags = (flags.toInt | EV_ONESHOT).toUShort
+      event.ident = ident.toUSize
+      event.filter = filter
+      event.flags = (flags.toInt | EV_ONESHOT).toUShort
 
       callbacks.update(encodeKevent(ident, filter), cb)
 
@@ -185,70 +186,7 @@ object KqueueSystem extends PollingSystem {
       if (unistd.close(kqfd) != 0)
         throw new IOException(fromCString(strerror(errno)))
 
-    private[KqueueSystem] def poll(timeout: Long): Boolean = {
-
-      val eventlist = changelist
-      var polled = false
-
-      @tailrec
-      def processEvents(timeout: Ptr[timespec], changeCount: Int, flags: Int): Unit = {
-        val triggeredEvents =
-          if ((flags & KEVENT_FLAG_IMMEDIATE) != 0)
-            immediate.kevent64(
-              kqfd,
-              changelist,
-              changeCount,
-              eventlist,
-              MaxEvents,
-              flags.toUInt,
-              null
-            )
-          else
-            awaiting.kevent64(
-              kqfd,
-              changelist,
-              changeCount,
-              eventlist,
-              MaxEvents,
-              flags.toUInt,
-              timeout
-            )
-
-        if (triggeredEvents >= 0) {
-          var i = 0
-          var event = eventlist
-          while (i < triggeredEvents) {
-            val cb =
-              if (event.filter == EVFILT_USER)
-                null // we just ignore the interrupt, since its whole purpose is to awaken the poller
-              else {
-                val kevent = encodeKevent(event.ident.toInt, event.filter)
-                val cb = callbacks.getOrElse(kevent, null)
-                callbacks -= kevent
-                cb
-              }
-
-            if (cb ne null) {
-              polled = true
-              cb(
-                if ((event.flags.toLong & EV_ERROR) != 0)
-                  Left(new IOException(fromCString(strerror(event.data.toInt))))
-                else Either.unit
-              )
-            }
-
-            i += 1
-            event += 1
-          }
-        } else if (errno != EINTR) { // spurious wake-up by signal
-          throw new IOException(fromCString(strerror(errno)))
-        }
-
-        if (triggeredEvents >= MaxEvents)
-          processEvents(null, 0, KEVENT_FLAG_IMMEDIATE) // drain the ready list
-        else
-          ()
-      }
+    private[KqueueSystem] def poll(timeout: Long): PollResult = {
 
       val timeoutSpec =
         if (timeout <= 0) null
@@ -261,10 +199,71 @@ object KqueueSystem extends PollingSystem {
 
       val flags = if (timeout == 0) KEVENT_FLAG_IMMEDIATE else KEVENT_FLAG_NONE
 
-      processEvents(timeoutSpec, changeCount, flags)
+      val rtn =
+        if ((flags & KEVENT_FLAG_IMMEDIATE) != 0)
+          immediate.kevent64(
+            kqfd,
+            eventlist,
+            changeCount,
+            eventlist,
+            MaxEvents,
+            flags.toUInt,
+            null
+          )
+        else
+          awaiting.kevent64(
+            kqfd,
+            eventlist,
+            changeCount,
+            eventlist,
+            MaxEvents,
+            flags.toUInt,
+            timeoutSpec
+          )
       changeCount = 0
 
-      polled
+      if (rtn >= 0) {
+        readyEventCount = rtn
+        if (rtn > 0) {
+          if (rtn < MaxEvents) PollResult.Complete else PollResult.Incomplete
+        } else PollResult.Interrupted
+      } else if (errno == EINTR) { // spurious wake-up by signal
+        PollResult.Interrupted
+      } else {
+        throw new IOException(fromCString(strerror(errno)))
+      }
+    }
+
+    private[KqueueSystem] def processReadyEvents(): Boolean = {
+      var fibersRescheduled = false
+      var i = 0
+      var event = eventlist
+      while (i < readyEventCount) {
+        val cb =
+          if (event.filter == EVFILT_USER)
+            null // we just ignore the interrupt, since its whole purpose is to awaken the poller
+          else {
+            val kevent = encodeKevent(event.ident.toInt, event.filter)
+            val cb = callbacks.getOrElse(kevent, null)
+            callbacks -= kevent
+            cb
+          }
+
+        if (cb ne null) {
+          cb(
+            if ((event.flags.toLong & EV_ERROR) != 0)
+              Left(new IOException(fromCString(strerror(event.data.toInt))))
+            else Either.unit
+          )
+          fibersRescheduled = true
+        }
+
+        i += 1
+        event += 1
+      }
+
+      readyEventCount = 0
+      fibersRescheduled
     }
 
     private[KqueueSystem] def needsPoll(): Boolean = changeCount > 0 || callbacks.nonEmpty

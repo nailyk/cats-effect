@@ -1,5 +1,5 @@
 /*
- * Copyright 2020-2024 Typelevel
+ * Copyright 2020-2025 Typelevel
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ package cats.effect
 import cats.{Align, Eval, Functor, Now, Show, StackSafeMonad}
 import cats.data.Ior
 import cats.effect.syntax.monadCancel._
+import cats.effect.unsafe.UnsafeNonFatal
 import cats.kernel.{Monoid, Semigroup}
 import cats.syntax.all._
 
@@ -26,7 +27,6 @@ import scala.annotation.{switch, tailrec}
 import scala.annotation.unchecked.uncheckedVariance
 import scala.concurrent.duration._
 import scala.util.Try
-import scala.util.control.NonFatal
 
 import Platform.static
 
@@ -244,7 +244,7 @@ sealed abstract class SyncIO[+A] private () extends Serializable {
           val r =
             try cur.thunk()
             catch {
-              case t if NonFatal(t) => error = t
+              case t if UnsafeNonFatal(t) => error = t
             }
 
           val next =
@@ -350,7 +350,7 @@ sealed abstract class SyncIO[+A] private () extends Serializable {
       val transformed =
         try f(result)
         catch {
-          case t if NonFatal(t) => error = t
+          case t if UnsafeNonFatal(t) => error = t
         }
 
       if (depth > MaxStackDepth) {
@@ -367,7 +367,7 @@ sealed abstract class SyncIO[+A] private () extends Serializable {
 
       try f(result)
       catch {
-        case t if NonFatal(t) => failed(t, depth + 1)
+        case t if UnsafeNonFatal(t) => failed(t, depth + 1)
       }
     }
 
@@ -376,7 +376,7 @@ sealed abstract class SyncIO[+A] private () extends Serializable {
 
       try f(t)
       catch {
-        case t if NonFatal(t) => failed(t, depth + 1)
+        case t if UnsafeNonFatal(t) => failed(t, depth + 1)
       }
     }
 
