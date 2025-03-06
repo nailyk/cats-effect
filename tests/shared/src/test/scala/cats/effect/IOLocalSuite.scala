@@ -18,8 +18,12 @@ package cats
 package effect
 
 import scala.annotation.tailrec
+import scala.concurrent.duration._
 
 class IOLocalSuite extends BaseSuite {
+
+  // the stack safety test is pretty long
+  override def executionTimeout = 40.seconds
 
   ioLocalTests(
     "IOLocal[Int]",
