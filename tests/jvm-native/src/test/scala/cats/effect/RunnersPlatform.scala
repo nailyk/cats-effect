@@ -22,7 +22,6 @@ import scala.concurrent.ExecutionContext
 
 trait RunnersPlatform { self: munit.Suite =>
 
-  @volatile
   private[this] var runtime0: IORuntime = _
 
   override def munitExecutionContext: ExecutionContext = ExecutionContext.global
