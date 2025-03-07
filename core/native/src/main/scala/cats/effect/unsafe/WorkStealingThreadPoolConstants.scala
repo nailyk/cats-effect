@@ -23,40 +23,40 @@ private object WorkStealingThreadPoolConstants {
    * The number of unparked threads is encoded as an unsigned 16 bit number in the 16 most
    * significant bits of a 32 bit integer.
    */
-  val UnparkShift: Int = 16
+  final val UnparkShift = 16
 
   /**
    * Constant used when parking a thread which was not searching for work.
    */
-  val DeltaNotSearching: Int = 1 << UnparkShift
+  final val DeltaNotSearching = 1 << UnparkShift
 
   /**
    * Constant used when parking a thread which was previously searching for work and also when
    * unparking any worker thread.
    */
-  val DeltaSearching: Int = DeltaNotSearching | 1
+  final val DeltaSearching = DeltaNotSearching | 1
 
   /**
    * The number of threads currently searching for work is encoded as an unsigned 16 bit number
    * in the 16 least significant bits of a 32 bit integer. Used for extracting the number of
    * searching threads.
    */
-  val SearchMask: Int = (1 << UnparkShift) - 1
+  final val SearchMask = (1 << UnparkShift) - 1
 
   /**
    * Used for extracting the number of unparked threads.
    */
-  val UnparkMask: Int = ~SearchMask
+  final val UnparkMask = ~SearchMask
 
   /**
    * Used for checking sources of external work every few iterations.
    */
-  val ExternalWorkTicks: Int = 32
+  final val ExternalWorkTicks = 32
 
-  val ExternalWorkTicksMask: Int = ExternalWorkTicks - 1
+  final val ExternalWorkTicksMask = ExternalWorkTicks - 1
 
-  val PollingTicks: Int = 2 * ExternalWorkTicks
+  final val PollingTicks = 2 * ExternalWorkTicks
 
-  val PollingTicksMask: Int = PollingTicks - 1
+  final val PollingTicksMask = PollingTicks - 1
 
 }
