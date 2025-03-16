@@ -47,6 +47,7 @@ class RandomSpec extends BaseSpec {
    */
   private def testRandom(randomGen: IO[Random[IO]]): Fragments = {
     "betweenDouble" >> {
+
       "generate a random double within a range" in real {
         val min: Double = 0.0
         val max: Double = 1.0
@@ -54,11 +55,31 @@ class RandomSpec extends BaseSpec {
         for {
           random <- randomGen
           randDoubles <- random.betweenDouble(min, max).replicateA(numIterations)
-        } yield randDoubles.forall(randDouble => randDouble >= min && randDouble <= max)
+        } yield randDoubles.forall(randDouble => randDouble >= min && randDouble < max)
+      }
+
+      "handle overflow" in real {
+        for {
+          random <- randomGen
+          randDoubles <- random.betweenDouble(Double.MinValue, Double.MaxValue).replicateA(100)
+        } yield randDoubles.forall { randDouble =>
+          // this specific value means there was an unhandled overflow:
+          randDouble != 1.7976931348623155e308
+        }
+      }
+
+      "handle underflow" in real {
+        for {
+          random <- randomGen
+          randDouble <- random.betweenDouble(
+            Double.MinPositiveValue,
+            java.lang.Math.nextUp(Double.MinPositiveValue))
+        } yield randDouble == Double.MinPositiveValue
       }
     }
 
     "betweenFloat" >> {
+
       "generate a random float within a range" in real {
         val min: Float = 0.0f
         val max: Float = 1.0f
@@ -66,7 +87,26 @@ class RandomSpec extends BaseSpec {
         for {
           random <- randomGen
           randFloats <- random.betweenFloat(min, max).replicateA(numIterations)
-        } yield randFloats.forall(randFloat => randFloat >= min && randFloat <= max)
+        } yield randFloats.forall(randFloat => randFloat >= min && randFloat < max)
+      }
+
+      "handle overflow" in real {
+        for {
+          random <- randomGen
+          randFloats <- random.betweenFloat(Float.MinValue, Float.MaxValue).replicateA(100)
+        } yield randFloats.forall { randFloat =>
+          // this specific value means there was an unhandled overflow:
+          randFloat != 3.4028233e38f
+        }
+      }
+
+      "handle underflow" in real {
+        for {
+          random <- randomGen
+          randFloat <- random.betweenFloat(
+            Float.MinPositiveValue,
+            java.lang.Math.nextUp(Float.MinPositiveValue))
+        } yield randFloat == Float.MinPositiveValue
       }
     }
 
