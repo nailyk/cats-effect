@@ -744,7 +744,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
 
       var t: WorkerThread[P] = null
       while ({
-        t = cachedThreads.pollFirst()
+        t = cachedThreads.poll()
         t ne null
       }) {
         t.interrupt()
