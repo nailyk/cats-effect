@@ -64,14 +64,16 @@ class RandomSpec extends BaseSpec {
           randDoubles <- random.betweenDouble(Double.MinValue, Double.MaxValue).replicateA(100)
         } yield randDoubles.forall { randDouble =>
           // this specific value means there was an unhandled overflow:
-          randDouble != 1.7976931348623155E308
+          randDouble != 1.7976931348623155e308
         }
       }
 
       "handle underflow" in real {
         for {
           random <- randomGen
-          randDouble <- random.betweenDouble(Double.MinPositiveValue, java.lang.Math.nextUp(Double.MinPositiveValue))
+          randDouble <- random.betweenDouble(
+            Double.MinPositiveValue,
+            java.lang.Math.nextUp(Double.MinPositiveValue))
         } yield randDouble == Double.MinPositiveValue
       }
     }
@@ -94,14 +96,16 @@ class RandomSpec extends BaseSpec {
           randFloats <- random.betweenFloat(Float.MinValue, Float.MaxValue).replicateA(100)
         } yield randFloats.forall { randFloat =>
           // this specific value means there was an unhandled overflow:
-          randFloat != 3.4028233E38f
+          randFloat != 3.4028233e38f
         }
       }
 
       "handle underflow" in real {
         for {
           random <- randomGen
-          randFloat <- random.betweenFloat(Float.MinPositiveValue, java.lang.Math.nextUp(Float.MinPositiveValue))
+          randFloat <- random.betweenFloat(
+            Float.MinPositiveValue,
+            java.lang.Math.nextUp(Float.MinPositiveValue))
         } yield randFloat == Float.MinPositiveValue
       }
     }
