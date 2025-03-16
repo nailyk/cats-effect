@@ -72,7 +72,7 @@ abstract class BaseDeferredParallelismTests(parallelism: Int)
   val iterations = if (isCI) 1000 else 10000
   val timeout = (if (isCI) 30.seconds else 10.seconds) * timeoutCoefficient
 
-  override def munitTimeout: Duration = timeout * iterations
+  override def munitTimeout: Duration = timeout * iterations.toLong
 
   def cleanupOnError[A](task: IO[A], f: FiberIO[?]) =
     task guaranteeCase {
