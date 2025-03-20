@@ -351,7 +351,7 @@ lazy val nativeTestSettings = Seq(
       .withMode(Mode.debug) // compile using LLVM without optimizations
       .withCompileOptions(c.compileOptions ++ Seq("-gdwarf-4"))
   },
-  envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "4g") else Map.empty[String, String] },
+  envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "6g") else Map.empty[String, String] },
   parallelExecution := !inCI
 )
 
