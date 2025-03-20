@@ -222,5 +222,5 @@ private[effect] object FiberMonitor {
     } else {
       new FiberMonitor(null)
     }
-  } else new FiberMonitor(null)
+  } else new NoOpFiberMonitor
 }
