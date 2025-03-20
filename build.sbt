@@ -928,6 +928,7 @@ lazy val testkit = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion
     )
   )
+  .nativeSettings(Test / envVars += ("GC_MAXIMUM_HEAP_SIZE" -> "4g"))
 
 /**
  * Unit tests for the core project, utilizing the support provided by testkit.
@@ -965,7 +966,8 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
         .withOptimize(false) // disable Scala Native optimizer
         .withMode(Mode.debug) // compile using LLVM without optimizations
         .withCompileOptions(c.compileOptions ++ Seq("-gdwarf-4"))
-    }
+    },
+    Test / envVars += ("GC_MAXIMUM_HEAP_SIZE" -> "4g")
   )
 
 def configureIOAppTests(p: Project): Project =
