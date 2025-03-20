@@ -20,21 +20,33 @@ package unsafe
 import scala.concurrent.ExecutionContext
 import scala.scalajs.{js, LinkingInfo}
 
-// dummy param is stupid but we need to make the constructor have the same shape as JVM
-// TODO untangle this mess
-private[effect] abstract class FiberMonitor(dummy: Null) extends FiberMonitorShared {
-  {
-    val _ = dummy
-    ()
-  }
+private[effect] sealed abstract class FiberMonitor extends FiberMonitorShared {
+
+  /**
+   * Registers a suspended fiber.
+   *
+   * @param fiber
+   *   the suspended fiber to be registered
+   * @return
+   *   a handle for deregistering the fiber on resumption
+   */
+  def monitorSuspended(fiber: IOFiber[?]): WeakBag.Handle
+
+  /**
+   * Obtains a snapshot of the fibers currently live on the [[IORuntime]] which this fiber
+   * monitor instance belongs to.
+   *
+   * @return
+   *   a textual representation of the runtime snapshot, `None` if a snapshot cannot be obtained
+   */
+  def liveFiberSnapshot(print: String => Unit): Unit
 }
 
 private final class FiberMonitorImpl(
     // A reference to the compute pool of the `IORuntime` in which this suspended fiber bag
     // operates. `null` if the compute pool of the `IORuntime` is not a `BatchingMacrotaskExecutor`.
     private[this] val compute: BatchingMacrotaskExecutor
-) extends FiberMonitor(null) {
-
+) extends FiberMonitor {
   private[this] val bag = new WeakBag[IOFiber[?]]()
 
   override def monitorSuspended(fiber: IOFiber[?]): WeakBag.Handle =
@@ -71,6 +83,16 @@ private final class FiberMonitorImpl(
       print(globalStatus)
       print(newline)
     }
+
+}
+
+/**
+ * A no-op implementation of an unordered bag used for tracking asynchronously suspended fiber
+ * instances on Scala Native. This is used as a fallback.
+ */
+private final class NoOpFiberMonitor extends FiberMonitor {
+  override def monitorSuspended(fiber: IOFiber[?]): WeakBag.Handle = () => ()
+  def liveFiberSnapshot(print: String => Unit): Unit = ()
 }
 
 private[effect] object FiberMonitor {

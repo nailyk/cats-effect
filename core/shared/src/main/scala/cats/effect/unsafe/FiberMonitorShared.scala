@@ -24,25 +24,6 @@ private[unsafe] abstract class FiberMonitorShared {
   protected val newline = System.lineSeparator()
   protected val doubleNewline = s"$newline $newline"
 
-  /**
-   * Registers a suspended fiber.
-   *
-   * @param fiber
-   *   the suspended fiber to be registered
-   * @return
-   *   a handle for deregistering the fiber on resumption
-   */
-  def monitorSuspended(fiber: IOFiber[?]): WeakBag.Handle
-
-  /**
-   * Obtains a snapshot of the fibers currently live on the [[IORuntime]] which this fiber
-   * monitor instance belongs to.
-   *
-   * @return
-   *   a textual representation of the runtime snapshot, `None` if a snapshot cannot be obtained
-   */
-  def liveFiberSnapshot(print: String => Unit): Unit
-
   protected def fiberString(fiber: IOFiber[?], trace: Trace, status: String): String = {
     val id = System.identityHashCode(fiber).toHexString
     val prefixedTrace = if (trace.toList.isEmpty) "" else newline + Tracing.prettyPrint(trace)
