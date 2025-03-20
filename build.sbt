@@ -28,8 +28,10 @@ import scala.scalanative.build._
 
 import JSEnv._
 
+lazy val inCI = Option(System.getenv("CI")).contains("true")
+
 // sbt-git workarounds
-ThisBuild / useConsoleForROGit := !Option(System.getenv("CI")).contains("true")
+ThisBuild / useConsoleForROGit := !inCI
 
 ThisBuild / git.gitUncommittedChanges := {
   if ((ThisBuild / githubIsWorkflowBuild).value) {
@@ -341,6 +343,17 @@ addCommandAlias(CI.Chrome.command, CI.Chrome.toString)
 tlReplaceCommandAlias(
   "prePR",
   "; root/clean; +root/headerCreate; root/scalafixAll; scalafmtSbt; +root/scalafmtAll")
+
+lazy val nativeTestSettings = Seq(
+  nativeConfig ~= { c => // TODO: remove this when it seems to work
+    c.withSourceLevelDebuggingConfig(_.enableAll) // enable generation of debug information
+      .withOptimize(false) // disable Scala Native optimizer
+      .withMode(Mode.debug) // compile using LLVM without optimizations
+      .withCompileOptions(c.compileOptions ++ Seq("-gdwarf-4"))
+  },
+  envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "4g") else Map.empty[String, String] },
+  parallelExecution := !inCI
+)
 
 val jsProjects: Seq[ProjectReference] =
   Seq(
@@ -928,7 +941,7 @@ lazy val testkit = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion
     )
   )
-  .nativeSettings(Test / envVars += ("GC_MAXIMUM_HEAP_SIZE" -> "4g"))
+  .nativeSettings(nativeTestSettings)
 
 /**
  * Unit tests for the core project, utilizing the support provided by testkit.
@@ -961,13 +974,7 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
   )
   .nativeSettings(
     Compile / mainClass := Some("catseffect.examples.NativeRunner"),
-    nativeConfig ~= { c => // TODO: remove this when it seems to work
-      c.withSourceLevelDebuggingConfig(_.enableAll) // enable generation of debug information
-        .withOptimize(false) // disable Scala Native optimizer
-        .withMode(Mode.debug) // compile using LLVM without optimizations
-        .withCompileOptions(c.compileOptions ++ Seq("-gdwarf-4"))
-    },
-    Test / envVars += ("GC_MAXIMUM_HEAP_SIZE" -> "4g")
+    nativeTestSettings
   )
 
 def configureIOAppTests(p: Project): Project =
