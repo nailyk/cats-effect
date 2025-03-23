@@ -884,7 +884,12 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         ProblemFilters.exclude[MissingClassProblem](
           "cats.effect.metrics.JsCpuStarvationMetrics"),
         ProblemFilters.exclude[MissingClassProblem](
-          "cats.effect.metrics.JsCpuStarvationMetrics$")
+          "cats.effect.metrics.JsCpuStarvationMetrics$"),
+        // all package-private classes; introduced when we made Native multithreaded
+        ProblemFilters.exclude[MissingClassProblem]("cats.effect.unsafe.FiberExecutor"),
+        ProblemFilters.exclude[IncompatibleMethTypeProblem](
+          "cats.effect.unsafe.FiberMonitorImpl.this"),
+        ProblemFilters.exclude[MissingClassProblem]("cats.effect.unsafe.FiberMonitorPlatform")
       )
     },
     mimaBinaryIssueFilters ++= {
