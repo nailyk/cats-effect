@@ -27,6 +27,6 @@ private[effect] trait ClockPlatform[F[_]] extends Serializable { self: Clock[F] 
     self.applicative.map(realTimeInstant)(d => ZonedDateTime.ofInstant(d, ClockPlatform.UTC))
 }
 
-object ClockPlatform {
+private[effect] object ClockPlatform {
   private val UTC = ZoneId.of("UTC")
 }
