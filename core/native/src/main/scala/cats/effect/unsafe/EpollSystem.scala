@@ -185,7 +185,7 @@ object EpollSystem extends PollingSystem {
     private[this] val handles: TrieMap[PollHandle, Unit] =
       new TrieMap
 
-    private[this] val eventsArray = new Array[Byte](sizeof[epoll_event].toInt * MaxEvents)
+    private[this] val eventsArray = new Array[Byte](epoll_eventTag.size.toInt * MaxEvents)
     @inline private[this] def events = eventsArray.atUnsafe(0).asInstanceOf[Ptr[epoll_event]]
     private[this] var readyEventCount: Int = 0
 
