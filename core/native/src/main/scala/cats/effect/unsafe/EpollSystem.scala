@@ -198,6 +198,7 @@ object EpollSystem extends PollingSystem {
       event.events = (EPOLLET | EPOLLIN).toUInt
       event.data = null
       if (epoll_ctl(epfd, EPOLL_CTL_ADD, fd, event) != 0) {
+        unistd.close(fd)
         throw new IOException(fromCString(strerror(errno)))
       }
       fd
