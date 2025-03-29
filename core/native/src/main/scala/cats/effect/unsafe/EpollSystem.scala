@@ -244,8 +244,8 @@ object EpollSystem extends PollingSystem {
           handle.notify(event.events.toInt)
           fibersRescheduled = true
         } else {
-          val buf = stackalloc[CUnsignedInt]()
-          if (unistd.read(interruptFd, buf, 8.toCSize) == -1) {
+          val buf = stackalloc[ULong]()
+          if (unistd.read(interruptFd, buf, sizeof[ULong]) == -1) {
             throw new IOException(fromCString(strerror(errno)))
           }
         }
@@ -258,9 +258,9 @@ object EpollSystem extends PollingSystem {
     private[EpollSystem] def needsPoll(): Boolean = !handles.isEmpty
 
     private[EpollSystem] def interrupt(): Unit = {
-      val buf = stackalloc[CUnsignedInt]()
-      buf(0) = 1.toUInt
-      if (unistd.write(this.interruptFd, buf, 8.toCSize) == -1) {
+      val buf = stackalloc[ULong]()
+      buf(0) = 1.toULong
+      if (unistd.write(this.interruptFd, buf, sizeof[ULong]) == -1) {
         throw new IOException(fromCString(strerror(errno)))
       }
     }
