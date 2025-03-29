@@ -83,9 +83,12 @@ private object Signal {
   }
 
   private[this] def installHandler(signum: CInt, handler: CFuncPtr1[CInt, Unit]): Unit = {
-    val action = stackalloc[sigaction]()
+    val action = stackalloc[Byte](sizeof[sigaction]).asInstanceOf[Ptr[sigaction]]
     action.sa_handler = handler
-    sigaddset(action.at2, 13) // mask SIGPIPE
+    if (sigemptyset(action.at2) != 0)
+      throw new IOException(fromCString(strerror(errno)))
+    if (sigaddset(action.at2, 13) != 0) // mask SIGPIPE
+      throw new IOException(fromCString(strerror(errno)))
     if (sigaction(signum, action, null) != 0)
       throw new IOException(fromCString(strerror(errno)))
   }
