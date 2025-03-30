@@ -21,8 +21,6 @@ import cats.syntax.all._
 import scala.scalanative.meta.LinktimeInfo._
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.fcntl._
-import scala.scalanative.posix.signal._
-import scala.scalanative.posix.signalOps._
 import scala.scalanative.posix.string._
 import scala.scalanative.posix.unistd._
 import scala.scalanative.unsafe._
@@ -83,13 +81,7 @@ private object Signal {
   }
 
   private[this] def installHandler(signum: CInt, handler: CFuncPtr1[CInt, Unit]): Unit = {
-    val action = stackalloc[Byte](256).asInstanceOf[Ptr[sigaction]] // TODO: 256
-    action.sa_handler = handler
-    if (sigemptyset(action.at2) != 0)
-      throw new IOException(fromCString(strerror(errno)))
-    if (sigaddset(action.at2, 13) != 0) // mask SIGPIPE
-      throw new IOException(fromCString(strerror(errno)))
-    if (sigaction(signum, action, null) != 0)
+    if (signal_helper.install_handler(signum, handler) != 0)
       throw new IOException(fromCString(strerror(errno)))
   }
 
@@ -130,4 +122,9 @@ private object Signal {
       }
     }
 
+}
+
+@extern
+private object signal_helper { // see signal_helper.c
+  def install_handler(signum: CInt, handler: CFuncPtr1[CInt, Unit]): CInt = extern
 }
