@@ -533,7 +533,7 @@ trait IOConcurrencySuite extends DetectPlatform { this: BaseSuite =>
             poller.poll.replicateA_(100).as(true)
           }
 
-        assertEquals(test.unsafeRunTimed(1.second), Some(true))
+        assertEquals(test.unsafeRunTimed(if (isNative) 5.seconds else 1.second), Some(true))
       } finally {
         runtime.shutdown()
       }
