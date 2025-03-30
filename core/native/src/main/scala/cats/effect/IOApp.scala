@@ -131,13 +131,6 @@ import java.util.concurrent.atomic.AtomicInteger
  * number of compute worker threads to "make room" for the I/O workers, such that they all sum
  * to the number of physical threads exposed by the kernel.
  *
- * @note
- *   The Scala Native runtime has several limitations compared to its JVM and JS counterparts
- *   and should generally be considered experimental at this stage. Limitations include:
- *   - No blocking threadpool: [[IO.blocking]] will simply block the main thread
- *   - No support for graceful termination: finalizers will not run on external cancelation
- *   - No support for tracing or fiber dumps
- *
  * @see
  *   [[IO]]
  * @see
@@ -207,6 +200,11 @@ trait IOApp {
   // arbitrary constant is arbitrary
   private[this] lazy val queue = new ArrayBlockingQueue[AnyRef](32)
 
+  private[this] def handleTerminalFailure(t: Throwable): Unit = {
+    queue.clear()
+    queue.put(t)
+  }
+
   /**
    * Executes the provided actions on the JVM's `main` thread. Note that this is, by definition,
    * a single-threaded executor, and should not be used for anything which requires a meaningful
@@ -226,13 +224,11 @@ trait IOApp {
     new ExecutionContext {
       def reportFailure(t: Throwable): Unit =
         t match {
-          case t if NonFatal(t) =>
+          case t if UnsafeNonFatal(t) =>
             IOApp.this.reportFailure(t).unsafeRunAndForgetWithoutCallback()(runtime)
 
           case t =>
-            runtime.shutdown()
-            queue.clear()
-            queue.put(t)
+            handleTerminalFailure(t)
         }
 
       def execute(r: Runnable): Unit =
