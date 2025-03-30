@@ -18,6 +18,8 @@ package cats.effect
 
 import cats.syntax.all._
 
+import org.typelevel.scalaccompat.annotation._
+
 import scala.scalanative.meta.LinktimeInfo._
 import scala.scalanative.posix.errno._
 import scala.scalanative.posix.fcntl._
@@ -125,6 +127,7 @@ private object Signal {
 }
 
 @extern
+@nowarn212
 private object signal_helper { // see signal_helper.c
   def install_handler(signum: CInt, handler: CFuncPtr1[CInt, Unit]): CInt = extern
 }
