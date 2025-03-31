@@ -137,6 +137,9 @@ object SecureRandom extends SecureRandomCompanionPlatform {
    * errors.
    */
   override def javaSecuritySecureRandom[F[_]: Sync]: F[SecureRandom[F]] =
-    super.javaSecuritySecureRandom[F]
+    javaSecuritySecureRandomGeneric
+
+  override def javaSecuritySecureRandomGeneric[F[_]: Sync, G[_]: Sync]: F[SecureRandom[G]] =
+    super.javaSecuritySecureRandomGeneric[F, G]
 
 }

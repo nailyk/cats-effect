@@ -44,7 +44,10 @@ private[std] trait SecureRandomCompanionPlatform {
     new ScalaRandom[F](Applicative[F].pure(random), Sync.Type.Blocking) with SecureRandom[F] {}
 
   def javaSecuritySecureRandom[F[_]: Sync]: F[SecureRandom[F]] =
-    Sync[F].delay(unsafeJavaSecuritySecureRandom())
+    javaSecuritySecureRandomGeneric
+
+  def javaSecuritySecureRandomGeneric[F[_]: Sync, G[_]: Sync]: F[SecureRandom[G]] =
+    Sync[F].delay(unsafeJavaSecuritySecureRandom[G]())
 
   /**
    * Ported from https://github.com/http4s/http4s/.
