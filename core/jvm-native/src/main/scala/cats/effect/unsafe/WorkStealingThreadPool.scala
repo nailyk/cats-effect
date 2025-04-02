@@ -704,6 +704,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
       while (i < threadCount) {
         val workerThread = workerThreads.get(i)
         if (workerThread ne currentThread) {
+          system.interrupt(workerThread, pollers(i))
           workerThread.interrupt()
         }
         i += 1
