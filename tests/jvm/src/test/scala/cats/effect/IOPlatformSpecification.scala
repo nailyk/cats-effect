@@ -559,6 +559,48 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
           }
       }
 
+      final class MockSystem(sleepLatch: CountDownLatch) extends PollingSystem {
+
+        type Api = MockSystem
+        type Poller = AnyRef
+
+        val wasInterrupted: AtomicBoolean = new AtomicBoolean(false)
+
+        private[this] val interruptLatch = new CountDownLatch(1)
+
+        def close(): Unit = ()
+
+        def makeApi(ctx: PollingContext[Poller]): Api = this
+
+        def makePoller(): Poller = this
+
+        def closePoller(poller: Poller): Unit = ()
+
+        def poll(poller: Poller, nanos: Long): PollResult = {
+          sleepLatch.countDown()
+          try {
+            interruptLatch.await()
+          } catch {
+            case _: InterruptedException =>
+              // we've received the Thread#interrupt before the
+              // CountDownLatch#countDown, but it doesn't matter
+              ()
+          }
+          PollResult.Interrupted
+        }
+
+        def processReadyEvents(poller: Poller): Boolean = false
+
+        def needsPoll(poller: Poller): Boolean = false
+
+        def interrupt(targetThread: Thread, poller: Poller): Unit = {
+          wasInterrupted.set(true)
+          interruptLatch.countDown()
+        }
+
+        def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
+      }
+
       "wake parked thread for polled events" in {
 
         val (pool, poller, shutdown) = IORuntime.createWorkStealingComputeThreadPool(
@@ -661,6 +703,25 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
         } finally {
           runtime.shutdown()
         }
+      }
+
+      "correctly interrupt pollers on shutdown" in {
+
+        val sleepLatch = new CountDownLatch(1)
+        val (pool, poller, shutdown) = IORuntime.createWorkStealingComputeThreadPool(
+          threads = 1,
+          shutdownTimeout = 60.seconds,
+          pollingSystem = new MockSystem(sleepLatch))
+
+        implicit val runtime: IORuntime =
+          IORuntime.builder().setCompute(pool, shutdown).addPoller(poller, () => ()).build()
+
+        try {
+          sleepLatch.await() // wait for the thread to "go to sleep"
+        } finally {
+          runtime.shutdown()
+        }
+        poller.wasInterrupted.get() must beTrue
       }
 
       if (javaMajorVersion >= 21)
