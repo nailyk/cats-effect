@@ -137,7 +137,7 @@ To build the documentation site locally, the following dependencies are needed, 
 - Node (14.x ideally)
 - Yarn (any version should work)
 
-NOTE: [Nix](https://nixos.org/) users can just run `nix-shell` at the root directory and follow along the next instructions.
+NOTE: [Nix](https://nixos.org/) users can just run `nix develop` at the root directory and follow along the next instructions.
 
 Next, check out the documentation branch along with its submodules.
 

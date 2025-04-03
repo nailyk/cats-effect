@@ -15,7 +15,6 @@
  */
 
 import java.io.File
-import java.util.concurrent.TimeUnit
 
 import com.typesafe.tools.mima.core._
 import com.github.sbt.git.SbtGit.GitKeys._
@@ -46,7 +45,6 @@ ThisBuild / tlUntaggedAreSnapshots := false
 
 ThisBuild / organization := "org.typelevel"
 ThisBuild / organizationName := "Typelevel"
-ThisBuild / tlSonatypeUseLegacyHost := false
 
 ThisBuild / startYear := Some(2020)
 
@@ -114,8 +112,8 @@ val Windows = "windows-latest"
 val MacOS = "macos-14"
 
 val Scala212 = "2.12.20"
-val Scala213 = "2.13.15"
-val Scala3 = "3.3.4"
+val Scala213 = "2.13.16"
+val Scala3 = "3.3.5"
 
 ThisBuild / crossScalaVersions := Seq(Scala3, Scala212, Scala213)
 ThisBuild / githubWorkflowScalaVersions := crossScalaVersions.value
@@ -322,27 +320,43 @@ ThisBuild / apiURL := Some(url("https://typelevel.org/cats-effect/api/3.x/"))
 
 ThisBuild / autoAPIMappings := true
 
+ThisBuild / Test / testOptions += Tests.Argument("+l")
+
 val CatsVersion = "2.11.0"
 val CatsMtlVersion = "1.3.1"
-val Specs2Version = "4.20.5"
 val ScalaCheckVersion = "1.17.1"
-val DisciplineVersion = "1.4.0"
 val CoopVersion = "1.2.0"
+val MUnitVersion = "1.0.0-M11"
+val MUnitScalaCheckVersion = "1.0.0-M11"
+val DisciplineMUnitVersion = "2.0.0-M3"
 
 val MacrotaskExecutorVersion = "1.1.1"
 
-tlReplaceCommandAlias("ci", CI.AllCIs.map(_.toString).mkString)
-addCommandAlias("release", "tlRelease")
+Global / tlCommandAliases ++= Map(
+  CI.JVM.commandAlias,
+  CI.Native.commandAlias,
+  CI.JS.commandAlias,
+  CI.Firefox.commandAlias,
+  CI.Chrome.commandAlias
+)
 
-addCommandAlias(CI.JVM.command, CI.JVM.toString)
-addCommandAlias(CI.Native.command, CI.Native.toString)
-addCommandAlias(CI.JS.command, CI.JS.toString)
-addCommandAlias(CI.Firefox.command, CI.Firefox.toString)
-addCommandAlias(CI.Chrome.command, CI.Chrome.toString)
+Global / tlCommandAliases ++= Map(
+  "ci" -> CI.AllCIs.flatMap(_.commands)
+)
 
-tlReplaceCommandAlias(
-  "prePR",
-  "; root/clean; +root/headerCreate; root/scalafixAll; scalafmtSbt; +root/scalafmtAll")
+Global / tlCommandAliases ++= Map(
+  "release" -> List("tlRelease")
+)
+
+Global / tlCommandAliases ++= Map(
+  "prePR" -> List(
+    "root/clean",
+    "+root/headerCreate",
+    "root/scalafixAll",
+    "scalafmtSbt",
+    "+root/scalafmtAll"
+  )
+)
 
 val jsProjects: Seq[ProjectReference] =
   Seq(
@@ -416,8 +430,7 @@ lazy val kernel = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-kernel",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core" % CatsVersion,
-      "org.specs2" %%% "specs2-core" % Specs2Version % Test
+      "org.typelevel" %%% "cats-core" % CatsVersion
     ),
     mimaBinaryIssueFilters ++= Seq(
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.kernel.Ref$SyncRef"),
@@ -473,7 +486,7 @@ lazy val laws = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     name := "cats-effect-laws",
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-laws" % CatsVersion,
-      "org.typelevel" %%% "discipline-specs2" % DisciplineVersion % Test)
+      "org.typelevel" %%% "discipline-munit" % DisciplineMUnitVersion % Test)
   )
 
 /**
@@ -928,8 +941,7 @@ lazy val testkit = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-testkit",
     libraryDependencies ++= Seq(
-      "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion,
-      "org.specs2" %%% "specs2-core" % Specs2Version % Test
+      "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion
     )
   )
 
@@ -944,8 +956,9 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
     name := "cats-effect-tests",
     libraryDependencies ++= Seq(
       "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion,
-      "org.specs2" %%% "specs2-scalacheck" % Specs2Version % Test,
-      "org.typelevel" %%% "discipline-specs2" % DisciplineVersion % Test,
+      "org.scalameta" %%% "munit" % MUnitVersion % Test,
+      "org.scalameta" %%% "munit-scalacheck" % MUnitScalaCheckVersion % Test,
+      "org.typelevel" %%% "discipline-munit" % DisciplineMUnitVersion % Test,
       "org.typelevel" %%% "cats-kernel-laws" % CatsVersion % Test,
       "org.typelevel" %%% "cats-mtl-laws" % CatsMtlVersion % Test
     ),
@@ -969,7 +982,7 @@ def configureIOAppTests(p: Project): Project =
   p.enablePlugins(NoPublishPlugin, BuildInfoPlugin)
     .settings(
       Test / unmanagedSourceDirectories += (LocalRootProject / baseDirectory).value / "ioapp-tests" / "src" / "test" / "scala",
-      libraryDependencies += "org.specs2" %%% "specs2-core" % Specs2Version % Test,
+      libraryDependencies += "org.scalameta" %%% "munit" % MUnitVersion % Test,
       buildInfoPackage := "cats.effect",
       buildInfoKeys ++= Seq(
         "jsRunner" -> (tests.js / Compile / fastOptJS / artifactPath).value,
@@ -1017,8 +1030,7 @@ lazy val std = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-std",
     libraryDependencies ++= Seq(
-      "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion % Test,
-      "org.specs2" %%% "specs2-scalacheck" % Specs2Version % Test
+      "org.scalameta" %%% "munit" % MUnitVersion % Test
     ),
     mimaBinaryIssueFilters ++= {
       if (tlIsScala3.value) {
