@@ -752,7 +752,7 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
         // the threads exit cleanly; in this
         // case, they all must do that (within
         // the `shutdownTimeout`):
-        poller.closedPollers.get() mustEqual (N)
+        poller.closedPollers.get() mustEqual N
       }
 
       if (javaMajorVersion >= 21)
