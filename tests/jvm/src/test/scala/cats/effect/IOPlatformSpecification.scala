@@ -44,6 +44,7 @@ import java.util.concurrent.{
   ThreadLocalRandom
 }
 import java.util.concurrent.atomic.{AtomicBoolean, AtomicInteger, AtomicLong, AtomicReference}
+import java.util.concurrent.locks.LockSupport
 
 trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with ScalaCheck =>
 
@@ -559,6 +560,73 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
           }
       }
 
+      final class VerySleepySystem extends PollingSystem { // ignores Thread#interrupt
+
+        type Api = VerySleepySystem
+        type Poller = AtomicBoolean
+
+        val closedPollers: AtomicInteger = new AtomicInteger(0)
+
+        def close(): Unit = ()
+
+        def makeApi(ctx: PollingContext[Poller]): Api = this
+
+        def makePoller(): Poller = new AtomicBoolean(false)
+
+        def closePoller(parked: AtomicBoolean): Unit = {
+          if (!parked.get()) {
+            this.closedPollers.incrementAndGet()
+            ()
+          }
+        }
+
+        @scala.annotation.tailrec
+        def poll(parked: AtomicBoolean, nanos: Long): PollResult = {
+          if (nanos == 0L) {
+            PollResult.Interrupted
+          } else {
+            parked.set(true)
+            val now0 = System.nanoTime()
+            if (nanos < 0L) {
+              LockSupport.park()
+            } else { // nanos > 0L
+              LockSupport.parkNanos(nanos)
+            }
+            if (parked.get()) {
+              // awakened by Thread#interrupt, which we ignore
+              Thread.interrupted() // clear interrupt status
+              if (nanos < 0L) {
+                // go back to sleep
+                poll(parked, nanos)
+              } else {
+                val now1 = System.nanoTime()
+                val slept = now1 - now0
+                if (slept < nanos) {
+                  // go back to sleep
+                  poll(parked, nanos - slept)
+                } else {
+                  // but we're done anyway
+                  PollResult.Interrupted
+                }
+              }
+            } else {
+              PollResult.Interrupted
+            }
+          }
+        }
+
+        def processReadyEvents(poller: Poller): Boolean = false
+
+        def needsPoll(poller: Poller): Boolean = false
+
+        def interrupt(targetThread: Thread, parked: AtomicBoolean): Unit = {
+          parked.set(false)
+          LockSupport.unpark(targetThread)
+        }
+
+        def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
+      }
+
       "wake parked thread for polled events" in {
 
         val (pool, poller, shutdown) = IORuntime.createWorkStealingComputeThreadPool(
@@ -661,6 +729,30 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
         } finally {
           runtime.shutdown()
         }
+      }
+
+      "correctly interrupt on shutdown even when PollingSystem ignores Thread#interrupt" in {
+
+        val N = 3
+        val (pool, poller, shutdown) = IORuntime.createWorkStealingComputeThreadPool(
+          threads = N,
+          shutdownTimeout = 60.seconds,
+          pollingSystem = new VerySleepySystem)
+
+        implicit val runtime: IORuntime =
+          IORuntime.builder().setCompute(pool, shutdown).addPoller(poller, () => ()).build()
+
+        try {
+          Thread.sleep(1000L) // give them a chance to go to sleep
+          ok
+        } finally {
+          runtime.shutdown()
+        }
+        // `shutdown` only closes pollers if
+        // the threads exit cleanly; in this
+        // case, they all must do that (within
+        // the `shutdownTimeout`):
+        poller.closedPollers.get() mustEqual (N)
       }
 
       if (javaMajorVersion >= 21)
