@@ -413,14 +413,14 @@ trait IOApp {
             // threads to gracefully complete their work, and managed
             // environments to execute their own shutdown hooks.
           } else {
-            halt(ec.code)
+            System.exit(ec.code)
           }
 
           done = true
 
         case _: CancellationException =>
           // Do not report cancelation exceptions but still exit with an error code.
-          halt(1)
+          System.exit(1)
 
         case t: Throwable =>
           if (UnsafeNonFatal(t)) {
@@ -448,8 +448,14 @@ trait IOApp {
     }
   }
 
-  private[this] def halt(status: Int): Unit = System.exit(status)
-
+  private[this] def halt(status: Int): Unit = {
+    // TODO: This should be `Runtime#halt` (i.e.,
+    // TODO: not call shutdown hooks), but that is
+    // TODO: unavailable on scala-native. Note,
+    // TODO: that `stdlib.exit` seems to be the
+    // TODO: same as `System.exit` currently.
+    System.exit(status)
+  }
 }
 
 object IOApp {
