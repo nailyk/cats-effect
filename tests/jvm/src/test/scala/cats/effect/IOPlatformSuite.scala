@@ -687,8 +687,8 @@ trait IOPlatformSuite extends DetectPlatform {
         shutdownTimeout = 60.seconds,
         pollingSystem = new MockSystem(sleepLatch))
 
-     implicit val runtime: IORuntime =
-       IORuntime.builder().setCompute(pool, shutdown).addPoller(poller, () => ()).build()
+      implicit val runtime: IORuntime =
+        IORuntime.builder().setCompute(pool, shutdown).addPoller(poller, () => ()).build()
 
       try {
         sleepLatch.await() // wait for the thread to "go to sleep"
