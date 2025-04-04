@@ -15,7 +15,6 @@
  */
 
 import java.io.File
-import java.util.concurrent.TimeUnit
 
 import com.typesafe.tools.mima.core._
 import com.github.sbt.git.SbtGit.GitKeys._
@@ -49,7 +48,6 @@ ThisBuild / tlUntaggedAreSnapshots := false
 
 ThisBuild / organization := "org.typelevel"
 ThisBuild / organizationName := "Typelevel"
-ThisBuild / tlSonatypeUseLegacyHost := false
 
 ThisBuild / startYear := Some(2020)
 
@@ -206,6 +204,12 @@ ThisBuild / githubWorkflowBuild := Seq("JVM", "JS", "Native").map { platform =>
     name = Some("Test Example Native App Using Binary"),
     cond = Some(s"matrix.ci == 'ciNative' && matrix.os == '$PrimaryOS'")
   ),
+  WorkflowStep.Sbt(
+    List("graalVMExample/nativeImage", "graalVMExample/nativeImageRun"),
+    name = Some("Test GraalVM Native Image"),
+    cond = Some(
+      s"(matrix.scala == '$Scala213' || matrix.scala == '$Scala3') && matrix.java == '${GraalVM.render}' && matrix.os == '$PrimaryOS'")
+  ),
   WorkflowStep.Run(
     List("cd scalafix", "sbt test"),
     name = Some("Scalafix tests"),
@@ -229,7 +233,7 @@ ThisBuild / githubWorkflowBuildMatrixExclusions := {
   val scalaJavaFilters = for {
     scala <- (ThisBuild / githubWorkflowScalaVersions).value.filterNot(Set(Scala213))
     java <- (ThisBuild / githubWorkflowJavaVersions).value.filterNot(Set(OldGuardJava))
-    if !(scala == Scala3 && java == LatestJava)
+    if !(scala == Scala3 && (java == LatestJava || java == GraalVM))
   } yield MatrixExclude(Map("scala" -> scala, "java" -> java.render))
 
   val armFilters =
@@ -331,18 +335,31 @@ val DisciplineMUnitVersion = "2.0.0"
 
 val MacrotaskExecutorVersion = "1.1.1"
 
-tlReplaceCommandAlias("ci", CI.AllCIs.map(_.toString).mkString)
-addCommandAlias("release", "tlRelease")
+Global / tlCommandAliases ++= Map(
+  CI.JVM.commandAlias,
+  CI.Native.commandAlias,
+  CI.JS.commandAlias,
+  CI.Firefox.commandAlias,
+  CI.Chrome.commandAlias
+)
 
-addCommandAlias(CI.JVM.command, CI.JVM.toString)
-addCommandAlias(CI.Native.command, CI.Native.toString)
-addCommandAlias(CI.JS.command, CI.JS.toString)
-addCommandAlias(CI.Firefox.command, CI.Firefox.toString)
-addCommandAlias(CI.Chrome.command, CI.Chrome.toString)
+Global / tlCommandAliases ++= Map(
+  "ci" -> CI.AllCIs.flatMap(_.commands)
+)
 
-tlReplaceCommandAlias(
-  "prePR",
-  "; root/clean; +root/headerCreate; root/scalafixAll; scalafmtSbt; +root/scalafmtAll")
+Global / tlCommandAliases ++= Map(
+  "release" -> List("tlRelease")
+)
+
+Global / tlCommandAliases ++= Map(
+  "prePR" -> List(
+    "root/clean",
+    "+root/headerCreate",
+    "root/scalafixAll",
+    "scalafmtSbt",
+    "+root/scalafmtAll"
+  )
+)
 
 lazy val nativeTestSettings = Seq(
   nativeConfig ~= { c => // TODO: remove this when it seems to work
