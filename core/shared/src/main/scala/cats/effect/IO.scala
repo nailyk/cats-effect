@@ -2335,6 +2335,10 @@ object IO extends IOCompanionPlatform with IOLowPriorityImplicits with TuplePara
 
 private object SyncStep {
   private val MaxSteps = 512
+  def interpret[G[+_], B](io: IO[B], limit: Int)(
+      implicit G: Sync[G]): G[Either[IO[B], (B, Int)]] = {
+    interpret(io, limit, MaxSteps)
+  }
   def interpret[G[+_], B](io: IO[B], limit: Int, stepsUntilDefer: Int = MaxSteps)(
       implicit G: Sync[G]): G[Either[IO[B], (B, Int)]] = {
     if (limit <= 0) {
@@ -2375,7 +2379,7 @@ private object SyncStep {
               case Left(io) => Left(io.handleErrorWith(f))
               case r @ Right(_) => r
             }
-            .handleErrorWith(t => interpret(f(t), limit - 1))
+            .handleErrorWith(t => interpret(f(t), limit - 1, stepsUntilDefer - 1))
 
         case IO.Uncancelable(body, _) if G.rootCancelScope == CancelScope.Uncancelable =>
           val ioa = body(new Poll[IO] {
