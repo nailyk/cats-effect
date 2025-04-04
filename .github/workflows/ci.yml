@@ -45,8 +45,6 @@ jobs:
             java: temurin@11
           - scala: 3.3.5
             java: temurin@21
-          - scala: 3.3.5
-            java: graalvm@21
           - scala: 2.12.20
             java: temurin@11
           - scala: 2.12.20
@@ -326,7 +324,7 @@ jobs:
         run: example/test-native.sh ${{ matrix.scala }}
 
       - name: Test GraalVM Native Image
-        if: (matrix.scala == '2.13.15' || matrix.scala == '3.3.4') && matrix.java == 'graalvm@21' && matrix.os == 'ubuntu-latest'
+        if: (matrix.scala == '2.13.16' || matrix.scala == '3.3.5') && matrix.java == 'graalvm@21' && matrix.os == 'ubuntu-latest'
         shell: bash
         run: sbt '++ ${{ matrix.scala }}' graalVMExample/nativeImage graalVMExample/nativeImageRun
 
