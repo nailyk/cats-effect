@@ -23,11 +23,14 @@ import org.openqa.selenium.firefox.{FirefoxOptions, FirefoxProfile}
 import org.scalajs.jsenv.nodejs.NodeJSEnv
 import org.scalajs.jsenv.selenium.SeleniumJSEnv
 import sbtcrossproject.CrossProject
+import scala.scalanative.build._
 
 import JSEnv._
 
+lazy val inCI = Option(System.getenv("CI")).contains("true")
+
 // sbt-git workarounds
-ThisBuild / useConsoleForROGit := !Option(System.getenv("CI")).contains("true")
+ThisBuild / useConsoleForROGit := !inCI
 
 ThisBuild / git.gitUncommittedChanges := {
   if ((ThisBuild / githubIsWorkflowBuild).value) {
@@ -40,7 +43,7 @@ ThisBuild / git.gitUncommittedChanges := {
   }
 }
 
-ThisBuild / tlBaseVersion := "3.6"
+ThisBuild / tlBaseVersion := "3.7"
 ThisBuild / tlUntaggedAreSnapshots := false
 
 ThisBuild / organization := "org.typelevel"
@@ -322,13 +325,13 @@ ThisBuild / autoAPIMappings := true
 
 ThisBuild / Test / testOptions += Tests.Argument("+l")
 
-val CatsVersion = "2.11.0"
-val CatsMtlVersion = "1.3.1"
-val ScalaCheckVersion = "1.17.1"
-val CoopVersion = "1.2.0"
-val MUnitVersion = "1.0.0-M11"
-val MUnitScalaCheckVersion = "1.0.0-M11"
-val DisciplineMUnitVersion = "2.0.0-M3"
+val CatsVersion = "2.12.0"
+val CatsMtlVersion = "1.5.0"
+val ScalaCheckVersion = "1.18.1"
+val CoopVersion = "1.3.0"
+val MUnitVersion = "1.1.0"
+val MUnitScalaCheckVersion = "1.1.0"
+val DisciplineMUnitVersion = "2.0.0"
 
 val MacrotaskExecutorVersion = "1.1.1"
 
@@ -356,6 +359,17 @@ Global / tlCommandAliases ++= Map(
     "scalafmtSbt",
     "+root/scalafmtAll"
   )
+)
+
+lazy val nativeTestSettings = Seq(
+  nativeConfig ~= { c => // TODO: remove this when it seems to work
+    c.withSourceLevelDebuggingConfig(_.enableAll) // enable generation of debug information
+      .withOptimize(false) // disable Scala Native optimizer
+      .withMode(Mode.debug) // compile using LLVM without optimizations
+      .withCompileOptions(c.compileOptions ++ Seq("-gdwarf-4"))
+  },
+  envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "8g") else Map.empty[String, String] },
+  parallelExecution := !inCI
 )
 
 val jsProjects: Seq[ProjectReference] =
@@ -441,7 +455,7 @@ lazy val kernel = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies += "org.scala-js" %%% "scala-js-macrotask-executor" % MacrotaskExecutorVersion % Test
   )
   .nativeSettings(
-    libraryDependencies += "io.github.cquiroz" %%% "scala-java-time" % "2.5.0"
+    libraryDependencies += "io.github.cquiroz" %%% "scala-java-time" % "2.6.0"
   )
 
 /**
@@ -887,7 +901,12 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         ProblemFilters.exclude[MissingClassProblem](
           "cats.effect.metrics.JsCpuStarvationMetrics"),
         ProblemFilters.exclude[MissingClassProblem](
-          "cats.effect.metrics.JsCpuStarvationMetrics$")
+          "cats.effect.metrics.JsCpuStarvationMetrics$"),
+        // all package-private classes; introduced when we made Native multithreaded
+        ProblemFilters.exclude[MissingClassProblem]("cats.effect.unsafe.FiberExecutor"),
+        ProblemFilters.exclude[IncompatibleMethTypeProblem](
+          "cats.effect.unsafe.FiberMonitorImpl.this"),
+        ProblemFilters.exclude[MissingClassProblem]("cats.effect.unsafe.FiberMonitorPlatform")
       )
     },
     mimaBinaryIssueFilters ++= {
@@ -944,6 +963,7 @@ lazy val testkit = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion
     )
   )
+  .nativeSettings(nativeTestSettings)
 
 /**
  * Unit tests for the core project, utilizing the support provided by testkit.
@@ -975,7 +995,8 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
     Test / javaOptions += "-Dcats.effect.trackFiberContext=true"
   )
   .nativeSettings(
-    Compile / mainClass := Some("catseffect.examples.NativeRunner")
+    Compile / mainClass := Some("catseffect.examples.NativeRunner"),
+    nativeTestSettings
   )
 
 def configureIOAppTests(p: Project): Project =
@@ -986,7 +1007,7 @@ def configureIOAppTests(p: Project): Project =
       buildInfoPackage := "cats.effect",
       buildInfoKeys ++= Seq(
         "jsRunner" -> (tests.js / Compile / fastOptJS / artifactPath).value,
-        "nativeRunner" -> (tests.native / Compile / nativeLink / artifactPath).value
+        "nativeRunner" -> (tests.native / Compile / crossTarget).value / (tests.native / Compile / moduleName).value
       )
     )
 
