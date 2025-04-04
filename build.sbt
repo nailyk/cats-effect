@@ -201,6 +201,12 @@ ThisBuild / githubWorkflowBuild := Seq("JVM", "JS", "Native").map { platform =>
     name = Some("Test Example Native App Using Binary"),
     cond = Some(s"matrix.ci == 'ciNative' && matrix.os == '$PrimaryOS'")
   ),
+  WorkflowStep.Sbt(
+    List("graalVMExample/nativeImage", "graalVMExample/nativeImageRun"),
+    name = Some("Test GraalVM Native Image"),
+    cond = Some(
+      s"(matrix.scala == '$Scala213' || matrix.scala == '$Scala3') && matrix.java == '${GraalVM.render}' && matrix.os == '$PrimaryOS'")
+  ),
   WorkflowStep.Run(
     List("cd scalafix", "sbt test"),
     name = Some("Scalafix tests"),
@@ -224,7 +230,7 @@ ThisBuild / githubWorkflowBuildMatrixExclusions := {
   val scalaJavaFilters = for {
     scala <- (ThisBuild / githubWorkflowScalaVersions).value.filterNot(Set(Scala213))
     java <- (ThisBuild / githubWorkflowJavaVersions).value.filterNot(Set(OldGuardJava))
-    if !(scala == Scala3 && java == LatestJava)
+    if !(scala == Scala3 && (java == LatestJava || java == GraalVM))
   } yield MatrixExclude(Map("scala" -> scala, "java" -> java.render))
 
   val armFilters =
