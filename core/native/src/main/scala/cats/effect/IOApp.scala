@@ -207,7 +207,7 @@ trait IOApp {
   }
 
   /**
-   * Executes the provided actions on the JVM's `main` thread. Note that this is, by definition,
+   * Executes the provided actions on the main thread. Note that this is, by definition,
    * a single-threaded executor, and should not be used for anything which requires a meaningful
    * amount of performance. Additionally, and also by definition, this process conflicts with
    * producing the results of an application. If one fiber calls `evalOn(MainThread)` while the
