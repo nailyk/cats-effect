@@ -422,7 +422,8 @@ lazy val kernel = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     mimaBinaryIssueFilters ++= Seq(
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.kernel.Ref$SyncRef"),
       ProblemFilters.exclude[Problem]("cats.effect.kernel.GenConcurrent#Memoize*"),
-      ProblemFilters.exclude[DirectMissingMethodProblem]("cats.effect.SyncStep.interpret")
+      ProblemFilters.exclude[DirectMissingMethodProblem]("cats.effect.SyncStep.interpret"),
+      ProblemFilters.exclude[DirectMissingMethodProblem]("cats.effect.SyncStep$.interpret")
     )
   )
   .jsSettings(
