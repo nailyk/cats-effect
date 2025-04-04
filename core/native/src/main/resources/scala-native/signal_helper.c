@@ -1,9 +1,10 @@
+#ifdef CATS_EFFECT_SIGNAL_HELPER
 #include <stddef.h>
 #include <signal.h>
 
 typedef void (*Handler)(int);
 
-int install_handler(int signum, Handler handler) {
+int cats_effect_install_handler(int signum, Handler handler) {
     int error;
     struct sigaction action;
     action.sa_handler = handler;
@@ -18,3 +19,4 @@ int install_handler(int signum, Handler handler) {
     }
     return sigaction(signum, &action, NULL);
 }
+#endif

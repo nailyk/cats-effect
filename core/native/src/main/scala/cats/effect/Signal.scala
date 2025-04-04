@@ -83,7 +83,7 @@ private object Signal {
   }
 
   private[this] def installHandler(signum: CInt, handler: CFuncPtr1[CInt, Unit]): Unit = {
-    if (signal_helper.install_handler(signum, handler) != 0)
+    if (signal_helper.cats_effect_install_handler(signum, handler) != 0)
       throw new IOException(fromCString(strerror(errno)))
   }
 
@@ -124,10 +124,10 @@ private object Signal {
       }
     }
 
-}
-
-@extern
-@nowarn212
-private object signal_helper { // see signal_helper.c
-  def install_handler(signum: CInt, handler: CFuncPtr1[CInt, Unit]): CInt = extern
+  @extern
+  @nowarn212
+  @define("CATS_EFFECT_SIGNAL_HELPER")
+  private object signal_helper { // see signal_helper.c
+    def cats_effect_install_handler(signum: CInt, handler: CFuncPtr1[CInt, Unit]): CInt = extern
+  }
 }
