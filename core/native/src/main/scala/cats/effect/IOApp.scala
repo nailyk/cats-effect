@@ -22,7 +22,6 @@ import cats.effect.unsafe.UnsafeNonFatal
 import cats.syntax.all._
 
 import scala.concurrent.{blocking, CancellationException, ExecutionContext}
-import scala.scalanative.libc.stdlib._
 import scala.scalanative.meta.LinktimeInfo._
 
 import java.util.concurrent.ArrayBlockingQueue
@@ -207,8 +206,8 @@ trait IOApp {
   }
 
   /**
-   * Executes the provided actions on the main thread. Note that this is, by definition,
-   * a single-threaded executor, and should not be used for anything which requires a meaningful
+   * Executes the provided actions on the main thread. Note that this is, by definition, a
+   * single-threaded executor, and should not be used for anything which requires a meaningful
    * amount of performance. Additionally, and also by definition, this process conflicts with
    * producing the results of an application. If one fiber calls `evalOn(MainThread)` while the
    * main fiber is returning, the first one will "win" and will cause the second one to wait its
@@ -414,14 +413,14 @@ trait IOApp {
             // threads to gracefully complete their work, and managed
             // environments to execute their own shutdown hooks.
           } else {
-            System.exit(ec.code)
+            halt(ec.code)
           }
 
           done = true
 
         case _: CancellationException =>
           // Do not report cancelation exceptions but still exit with an error code.
-          System.exit(1)
+          halt(1)
 
         case t: Throwable =>
           if (UnsafeNonFatal(t)) {
@@ -449,7 +448,7 @@ trait IOApp {
     }
   }
 
-  private[this] def halt(status: Int): Unit = exit(status)
+  private[this] def halt(status: Int): Unit = System.exit(status)
 
 }
 
