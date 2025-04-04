@@ -2334,7 +2334,7 @@ object IO extends IOCompanionPlatform with IOLowPriorityImplicits with TuplePara
 }
 
 private object SyncStep {
-  val MaxSteps = 512 // 512 matches  with trampoline depth in IOFiber for stack safety
+  final val MaxSteps = 512 // 512 matches  with trampoline depth in IOFiber for stack safety
 
   def interpret[G[+_], B](io: IO[B], limit: Int, stepsUntilDefer: Int)(
       implicit G: Sync[G]): G[Either[IO[B], (B, Int)]] = {
