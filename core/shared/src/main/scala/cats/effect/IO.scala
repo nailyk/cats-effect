@@ -2172,7 +2172,7 @@ object IO extends IOCompanionPlatform with IOLowPriorityImplicits with TuplePara
         implicit G: Sync[G]): G[Either[IO[A], A]] = {
       type H[+B] = G[B @uncheckedVariance]
       val H = G.asInstanceOf[Sync[H]]
-      G.map(SyncStep.interpret[H, A](fa, limit)(H))(_.map(_._1))
+      G.map(SyncStep.interpret[H, A](fa, limit, SyncStep.MaxSteps)(H))(_.map(_._1))
     }
   }
 
@@ -2334,12 +2334,9 @@ object IO extends IOCompanionPlatform with IOLowPriorityImplicits with TuplePara
 }
 
 private object SyncStep {
-  private val MaxSteps = 512
-  def interpret[G[+_], B](io: IO[B], limit: Int)(
-      implicit G: Sync[G]): G[Either[IO[B], (B, Int)]] = {
-    interpret(io, limit, MaxSteps)
-  }
-  def interpret[G[+_], B](io: IO[B], limit: Int, stepsUntilDefer: Int = MaxSteps)(
+  val MaxSteps = 512 // 512 matches  with trampoline depth in IOFiber for stack safety
+
+  def interpret[G[+_], B](io: IO[B], limit: Int, stepsUntilDefer: Int)(
       implicit G: Sync[G]): G[Either[IO[B], (B, Int)]] = {
     if (limit <= 0) {
       G.pure(Left(io))
