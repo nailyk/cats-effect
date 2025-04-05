@@ -2341,7 +2341,7 @@ private object SyncStep {
       implicit G: Sync[G]): G[Either[IO[B], (B, Int)]] =
     interpret(io, limit, MaxSteps)
 
-  @static def interpret[G[+_], B](io: IO[B], limit: Int, stepsUntilDefer: Int)(
+  def interpret[G[+_], B](io: IO[B], limit: Int, stepsUntilDefer: Int)(
       implicit G: Sync[G]): G[Either[IO[B], (B, Int)]] = {
     if (limit <= 0) {
       G.pure(Left(io))
