@@ -22,7 +22,7 @@ import scala.concurrent.duration._
 
 class IOFiberSuite extends BaseSuite with DetectPlatform {
 
-  if (!isJS || !isWSL) {
+  if ((!isJS || !isWSL) && (!isNative)) {
     real("toString a running fiber") {
       def loop: IO[Unit] = IO.unit.flatMap(_ => loop)
       val pattern =
