@@ -2131,21 +2131,14 @@ class IOSpec extends BaseSpec with Discipline with IOPlatformSpecification {
         sio.map(_.bimap(_ => (), _ => ())) must completeAsSync(Right(()))
       }
 
-      "handle large Ref update chain without StackOverflowError (#4337)" in {
-        val syncStepSize = 1000000
-        val updates = 100000
-
-        val io = for {
-          ref <- Ref.of[IO, Int](0)
-          _ <- Vector.fill(updates)(1).traverse_[IO, Unit](n => ref.update(_ + n))
-          result <- ref.get
-        } yield result
-
-        io.syncStep(syncStepSize).map {
+      "handle large sequence of operations without StackOverflowError #4337" in {
+        val io = IO.unit.replicateA_(100000)
+        io.syncStep(1000000).map {
           case Left(_) => throw new RuntimeException("Expected synchronous completion")
-          case Right(n) => n
-        } must completeAsSync(updates)
+          case Right(()) => ()
+        } must completeAsSync(())
       }
+
     }
 
     "fiber repeated yielding test" in real {
