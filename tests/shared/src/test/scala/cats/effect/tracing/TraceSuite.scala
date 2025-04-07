@@ -22,7 +22,7 @@ import cats.effect.testkit.TestInstances
 // Separate from TracingSpec so it can exist outside of cats.effect package
 class TraceSuite extends BaseSuite with TestInstances with DetectPlatform { self =>
 
-  if ((!isJS || !isWSL) && (!isNative)) {
+  if (!isJS || !isWSL) {
     realWithRuntime("have nice traces") { rt =>
       def loop(i: Int): IO[Int] =
         IO.pure(i).flatMap { j =>
