@@ -367,7 +367,6 @@ lazy val nativeTestSettings = Seq(
       .withOptimize(false) // disable Scala Native optimizer
       .withMode(Mode.debug) // compile using LLVM without optimizations
       .withCompileOptions(c.compileOptions ++ Seq(
-        "-gdwarf-4",
         "-fcxx-exceptions",
       ))
   },
