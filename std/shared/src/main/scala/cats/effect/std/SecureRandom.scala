@@ -124,6 +124,9 @@ object SecureRandom extends SecureRandomCompanionPlatform {
     }
 
   /**
+   * Builds a `SecureRandom[F]` value for effect types that are [[cats.effect.kernel.Sync]] and
+   * initializes random state using the same effect type
+   *
    * On the JVM, delegates to [[java.security.SecureRandom]].
    *
    * In browsers, delegates to the
@@ -139,6 +142,10 @@ object SecureRandom extends SecureRandomCompanionPlatform {
   override def javaSecuritySecureRandom[F[_]: Sync]: F[SecureRandom[F]] =
     javaSecuritySecureRandomGeneric
 
+  /**
+   * Builds a `SecureRandom[G]` value for effect types that are [[cats.effect.kernel.Sync]] but
+   * initializes random state using another effect constructor
+   */
   override def javaSecuritySecureRandomGeneric[F[_]: Sync, G[_]: Sync]: F[SecureRandom[G]] =
     super.javaSecuritySecureRandomGeneric[F, G]
 
