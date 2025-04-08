@@ -367,7 +367,7 @@ lazy val nativeTestSettings = Seq(
       .withOptimize(false) // disable Scala Native optimizer
       .withMode(Mode.debug) // compile using LLVM without optimizations
       .withCompileOptions(c.compileOptions ++ Seq(
-        "-fcxx-exceptions",
+        "-fno-cxx-exceptions",
       ))
   },
   envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "8g") else Map.empty[String, String] },
