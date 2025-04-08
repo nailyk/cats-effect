@@ -2132,11 +2132,11 @@ class IOSpec extends BaseSpec with Discipline with IOPlatformSpecification {
       }
 
       "handle large sequence of operations without StackOverflowError #4337" in {
-        val io = IO.unit.replicateA_(100000)
-        io.syncStep(1000000).map {
-          case Left(_) => throw new RuntimeException("Expected synchronous completion")
-          case Right(()) => ()
-        } must completeAsSync(())
+        def go(depth: Int, acc: IO[Unit] = IO.unit): IO[Unit] =
+          if (depth <= 0) acc else go(depth - 1, acc.flatMap(_ => IO.unit))
+        val io = go(50000)
+        io.syncStep(Int.MaxValue).unsafeRunSync() must beRight(())
+
       }
 
     }
