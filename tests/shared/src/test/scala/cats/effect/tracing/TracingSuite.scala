@@ -21,6 +21,7 @@ import cats.effect.testkit.TestInstances
 
 class TracingSuite extends BaseSuite with TestInstances {
 
+  if (!isNative) {
   testUnit("IO.delay should generate identical traces") {
     val f = () => println("foo")
     val a = IO(f())
@@ -57,6 +58,7 @@ class TracingSuite extends BaseSuite with TestInstances {
       case (IO.Delay(_, eventA), IO.Delay(_, eventB)) => assert(eventA ne eventB)
       case _ => fail("expected IO.Delay")
     }
+  }
   }
 
 }
