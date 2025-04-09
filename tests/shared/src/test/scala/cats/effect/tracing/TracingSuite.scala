@@ -22,43 +22,43 @@ import cats.effect.testkit.TestInstances
 class TracingSuite extends BaseSuite with TestInstances {
 
   if (!isNative) {
-  testUnit("IO.delay should generate identical traces") {
-    val f = () => println("foo")
-    val a = IO(f())
-    val b = IO(f())
-    (a, b) match {
-      case (IO.Delay(_, eventA), IO.Delay(_, eventB)) => assert(eventA eq eventB)
-      case _ => fail("expected IO.Delay")
+    testUnit("IO.delay should generate identical traces") {
+      val f = () => println("foo")
+      val a = IO(f())
+      val b = IO(f())
+      (a, b) match {
+        case (IO.Delay(_, eventA), IO.Delay(_, eventB)) => assert(eventA eq eventB)
+        case _ => fail("expected IO.Delay")
+      }
     }
-  }
 
-  testUnit("IO.delay should generate unique traces") {
-    val a = IO(println("foo"))
-    val b = IO(println("bar"))
-    (a, b) match {
-      case (IO.Delay(_, eventA), IO.Delay(_, eventB)) => assert(eventA ne eventB)
-      case _ => fail("expected IO.Delay")
+    testUnit("IO.delay should generate unique traces") {
+      val a = IO(println("foo"))
+      val b = IO(println("bar"))
+      (a, b) match {
+        case (IO.Delay(_, eventA), IO.Delay(_, eventB)) => assert(eventA ne eventB)
+        case _ => fail("expected IO.Delay")
+      }
     }
-  }
 
-  testUnit("Async.delay should generate identical traces") {
-    val f = () => println("foo")
-    val a = Async[IO].delay(f())
-    val b = Async[IO].delay(f())
-    (a, b) match {
-      case (IO.Delay(_, eventA), IO.Delay(_, eventB)) => assert(eventA eq eventB)
-      case _ => fail("expected IO.Delay")
+    testUnit("Async.delay should generate identical traces") {
+      val f = () => println("foo")
+      val a = Async[IO].delay(f())
+      val b = Async[IO].delay(f())
+      (a, b) match {
+        case (IO.Delay(_, eventA), IO.Delay(_, eventB)) => assert(eventA eq eventB)
+        case _ => fail("expected IO.Delay")
+      }
     }
-  }
 
-  testUnit("Async.delay should generate unique traces") {
-    val a = Async[IO].delay(println("foo"))
-    val b = Async[IO].delay(println("bar"))
-    (a, b) match {
-      case (IO.Delay(_, eventA), IO.Delay(_, eventB)) => assert(eventA ne eventB)
-      case _ => fail("expected IO.Delay")
+    testUnit("Async.delay should generate unique traces") {
+      val a = Async[IO].delay(println("foo"))
+      val b = Async[IO].delay(println("bar"))
+      (a, b) match {
+        case (IO.Delay(_, eventA), IO.Delay(_, eventB)) => assert(eventA ne eventB)
+        case _ => fail("expected IO.Delay")
+      }
     }
-  }
   }
 
 }
