@@ -16,11 +16,11 @@
 
 package not.cats.effect // verifies scoping outside of CE
 
-import cats.effect.{BaseSpec, IO}
+import cats.effect.{BaseSuite, IO}
 
-class IOCompilationSpec extends BaseSpec {
-  "Can use total function in PartialFunction IO.onError" in { // compilation test
+class IOCompilationSpec extends BaseSuite {
+  testUnit("Can use total function in PartialFunction IO.onError") { // compilation test
     IO.pure(5).onError(_ => IO.unit)
-    true
+    ()
   }
 }
