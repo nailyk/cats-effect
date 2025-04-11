@@ -363,12 +363,10 @@ Global / tlCommandAliases ++= Map(
 
 lazy val nativeTestSettings = Seq(
   nativeConfig ~= { c =>
-    c.withSourceLevelDebuggingConfig(_.enableAll.generateFunctionSourcePositions(true))
-      .withOptimize(false) // disable Scala Native optimizer
-      .withMode(Mode.debug) // compile using LLVM without optimizations
-      .withCompileOptions(c.compileOptions ++ Seq(
-        "-fno-cxx-exceptions",
-      ))
+    c
+      .withLTO(LTO.thin)
+      .withMode(Mode.releaseFast)
+      .withGC(GC.commix)
   },
   envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "8g") else Map.empty[String, String] },
   parallelExecution := !inCI
