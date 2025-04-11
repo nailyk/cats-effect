@@ -128,7 +128,7 @@ import cats.syntax.all._
  *
  * None of the boundaries above are cancelation boundaries as cancelation is masked.
  *
- * 2. The boundary after `uncancelable`
+ *   2. The boundary after `uncancelable`
  *
  * {{{
  *   F.uncancelable(poll => foo(poll)).flatMap(f)
@@ -161,7 +161,7 @@ import cats.syntax.all._
  * always be awkward. Given this, it is better to pick a semantic that allows safe composition
  * of regions.
  *
- * 3. The boundary after `poll`
+ *   3. The boundary after `poll`
  *
  * {{{
  *   F.uncancelable(poll => poll(fa).flatMap(f))
