@@ -22,7 +22,7 @@ import scala.concurrent.duration._
 
 class IOFiberSuite extends BaseSuite with DetectPlatform {
 
-  if ((!isJS || !isWSL) && (!isNative)) {
+  if (!isJS || !isWSL) {
     real("toString a running fiber") {
       def loop: IO[Unit] = IO.unit.flatMap(_ => loop)
       val pattern =
@@ -56,12 +56,12 @@ class IOFiberSuite extends BaseSuite with DetectPlatform {
     // "toString a suspended fiber" in skipped("Scala.js exception unmangling is buggy on WSL")
   }
 
-//   real("toString a completed fiber") {
-//     val pattern = raw"cats.effect.IOFiber@[0-9a-f][0-9a-f]+ COMPLETED"
-//     for {
-//       f <- IO.unit.start
-//       _ <- f.joinWithNever
-//       _ <- IO(assert(f.toString.matches(pattern)))
-//     } yield ()
-//   }
+  real("toString a completed fiber") {
+    val pattern = raw"cats.effect.IOFiber@[0-9a-f][0-9a-f]+ COMPLETED"
+    for {
+      f <- IO.unit.start
+      _ <- f.joinWithNever
+      _ <- IO(assert(f.toString.matches(pattern)))
+    } yield ()
+  }
 }
