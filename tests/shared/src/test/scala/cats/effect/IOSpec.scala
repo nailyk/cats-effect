@@ -2135,7 +2135,7 @@ class IOSpec extends BaseSpec with Discipline with IOPlatformSpecification {
         def go(depth: Int, acc: IO[Unit] = IO.unit): IO[Unit] =
           if (depth <= 0) acc else go(depth - 1, acc.flatMap(_ => IO.unit))
         val io = go(50000)
-        io.syncStep(Int.MaxValue).unsafeRunSync() must beRight(())
+        io.syncStep(Int.MaxValue).map(_.bimap(_ => (), _ => ())) must completeAsSync(Right(()))
 
       }
 
