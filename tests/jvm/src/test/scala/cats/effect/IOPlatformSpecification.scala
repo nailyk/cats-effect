@@ -591,7 +591,8 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
 
         def processReadyEvents(poller: Poller): Boolean = false
 
-        def needsPoll(poller: Poller): Boolean = false
+        // if we don't claim to need polling, then the worker won't bother calling it
+        def needsPoll(poller: Poller): Boolean = true
 
         def interrupt(targetThread: Thread, poller: Poller): Unit = {
           wasInterrupted.set(true)

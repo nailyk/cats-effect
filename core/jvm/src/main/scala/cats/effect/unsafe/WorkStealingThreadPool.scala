@@ -313,7 +313,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
       val polling = st eq ParkedSignal.ParkedPolling
       val simple = st eq ParkedSignal.ParkedSimple
 
-      if (polling || simple || signal.compareAndSet(st, ParkedSignal.Interrupting)) {
+      if ((polling || simple) && signal.compareAndSet(st, ParkedSignal.Interrupting)) {
         doneSleeping()
 
         // Fetch the latest references to the worker threads before doing the
@@ -725,8 +725,6 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
       while (i < threadCount) {
         val workerThread = workerThreads.get(i)
         if (workerThread ne currentThread) {
-          // we don't know which state we're in, so just try both interruptions
-          LockSupport.unpark(workerThread)
           system.interrupt(workerThread, pollers(i))
           workerThread.interrupt()
         }
