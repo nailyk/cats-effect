@@ -725,6 +725,48 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
         poller.wasInterrupted.get() must beTrue
       }
 
+      "handle mixed-mode poller/simple interruption with complex timers" in {
+        val delegate = unsafe.SelectorSystem()
+
+        val (pool, poller, shutdown) = IORuntime.createWorkStealingComputeThreadPool(
+          threads = 1,
+          shutdownTimeout = 60.seconds,
+          pollingSystem = new PollingSystem {
+            type Api = delegate.Api
+            type Poller = delegate.Poller
+            def makeApi(ctx: PollingContext[Poller]) = delegate.makeApi(ctx)
+            def close() = delegate.close()
+            def makePoller() = delegate.makePoller()
+            def closePoller(poller: Poller) = delegate.closePoller(poller)
+            def poll(poller: Poller, nanos: Long) = delegate.poll(poller, nanos)
+
+            // allows us to test what happens when some threads suspend with polling and some simple
+            def needsPoll(poller: Poller) = math.random() >= 0.5d
+
+            def interrupt(thread: Thread, poller: Poller) = delegate.interrupt(thread, poller)
+            def metrics(poller: Poller) = delegate.metrics(poller)
+            def processReadyEvents(poller: Poller) = delegate.processReadyEvents(poller)
+          }
+        )
+
+        implicit val runtime: IORuntime =
+          IORuntime.builder().setCompute(pool, shutdown).addPoller(poller, () => ()).build()
+
+        // just create a bit of chaos with timers and async completion
+        val sleeps = 0.until(10).map(i => IO.sleep((i * 10).millis)).toList
+
+        val latch = IO.deferred[Unit].flatMap(d => d.complete(()).start *> d.get)
+        val latches = 0.until(10).map(_ => latch).toList
+
+        val test = (sleeps ::: latches).parSequence.parReplicateA_(100)
+
+        try {
+          test.unsafeRunTimed(20.seconds) must beSome
+        } finally {
+          runtime.shutdown()
+        }
+      }
+
       if (javaMajorVersion >= 21)
         "block in-place on virtual threads" in real {
           val loomExec = classOf[Executors]
