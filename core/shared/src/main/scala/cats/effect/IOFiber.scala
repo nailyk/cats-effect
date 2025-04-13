@@ -1002,7 +1002,7 @@ private final class IOFiber[A](
 
         case 21 =>
           val cur = cur0.asInstanceOf[Blocking[Any]]
-          /* we know we're on the JVM here */
+          /* we know we're on JVM or Native here */
 
           if (isStackTracing) {
             pushTracingEvent(cur.event)
