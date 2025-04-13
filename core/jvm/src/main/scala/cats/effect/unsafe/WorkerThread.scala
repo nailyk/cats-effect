@@ -645,9 +645,10 @@ private[effect] final class WorkerThread[P <: AnyRef](
           // our state is being twiddled; wait for that to finish up
           // this happens when we wake ourselves at the same moment the pool decides to wake us
 
-          do {
+          while ({
             st = parked.get()
-          } while (st eq ParkedSignal.Interrupting)
+            st eq ParkedSignal.Interrupting
+          }) {}
         } else if (parked.compareAndSet(st, ParkedSignal.Unparked)) {
           // we won the race to awaken ourselves, so we need to let the pool know
           pool.doneSleeping()
@@ -694,9 +695,10 @@ private[effect] final class WorkerThread[P <: AnyRef](
           } else if (st eq ParkedSignal.Interrupting) {
             // awakened intentionally, but waiting for the state publish
             // we have to block here to ensure we don't go back to sleep again too fast
-            do {
+            while ({
               st = parked.get()
-            } while (st eq ParkedSignal.Interrupting)
+              st eq ParkedSignal.Interrupting
+            }) {}
 
             false
           } else {
@@ -759,9 +761,11 @@ private[effect] final class WorkerThread[P <: AnyRef](
                 } else if (st eq ParkedSignal.Interrupting) {
                   // awakened intentionally, but waiting for the state publish
                   // we have to block here to ensure we don't go back to sleep again too fast
-                  do {
+                  while ({
                     st = parked.get()
-                  } while (st eq ParkedSignal.Interrupting)
+                    st eq ParkedSignal.Interrupting
+                  }) {}
+
                   false
                 } else {
                   // awakened spuriously, re-check next sleeper
