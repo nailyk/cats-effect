@@ -656,8 +656,11 @@ private[effect] final class WorkerThread[P <: AnyRef](
     }
 
     // returns true if polled event, false if unparked
+    @tailrec
     def parkLoop(needsPoll: Boolean): Boolean = {
-      while (!done.get()) {
+      if (done.get()) {
+        false
+      } else {
         // Park the thread until further notice.
         val start = System.nanoTime()
         metrics.incrementPolledCount()
@@ -675,31 +678,33 @@ private[effect] final class WorkerThread[P <: AnyRef](
         // the only way we can be interrupted here is if it happened *externally* (probably sbt)
         if (isInterrupted()) {
           pool.shutdown()
+          false // we know `done` is true
         } else if (pollResult ne PollResult.Interrupted) {
           notifyDoneSleeping()
 
           // TODO, if no tasks scheduled could fastpath back to park?
           val _ = drainReadyEvents(pollResult, false)
-          return true
+          true
         } else {
           // Spurious wakeup check.
           var st = parked.get()
           if (st eq ParkedSignal.Unparked) {
             // awakened intentionally
-            return false
+            false
           } else if (st eq ParkedSignal.Interrupting) {
             // awakened intentionally, but waiting for the state publish
             // we have to block here to ensure we don't go back to sleep again too fast
             do {
               st = parked.get()
             } while (st eq ParkedSignal.Interrupting)
+
+            false
           } else {
             // awakened spuriously; loop
-            ()
+            parkLoop(needsPoll)
           }
         }
       }
-      false
     }
 
     // returns true if timed out or polled event, false if unparked
