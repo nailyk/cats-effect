@@ -116,6 +116,68 @@ trait IOConcurrencySuite extends DetectPlatform { this: BaseSuite =>
       task.replicateA_(100)
     }
 
+    real("interrupt well-behaved blocking synchronous effect") {
+      var interrupted = true
+      val latch = new CountDownLatch(1)
+
+      val await = IO.interruptible {
+        latch.countDown()
+        Thread.sleep(15000)
+        interrupted = false
+      }
+
+      for {
+        f <- await.start
+        _ <- IO.blocking(latch.await())
+        _ <- f.cancel
+        _ <- IO(assert(interrupted))
+      } yield ()
+    }
+
+    real("interrupt ill-behaved blocking synchronous effect") {
+      var interrupted = true
+      val latch = new CountDownLatch(1)
+
+      val await = IO.interruptibleMany {
+        latch.countDown()
+
+        try {
+          Thread.sleep(15000)
+        } catch {
+          case _: InterruptedException => ()
+        }
+
+        // psych!
+        try {
+          Thread.sleep(15000)
+        } catch {
+          case _: InterruptedException => ()
+        }
+
+        // I AM INVINCIBLE
+        Thread.sleep(15000)
+
+        interrupted = false
+      }
+
+      for {
+        f <- await.start
+        _ <- IO.blocking(latch.await())
+        _ <- f.cancel
+        _ <- IO(assert(interrupted))
+      } yield ()
+    }
+
+    ticked("realTimeInstant should return an Instant constructed from realTime") {
+      implicit ticker =>
+        val op = for {
+          now <- IO.realTimeInstant
+          realTime <- IO.realTime
+        } yield now.toEpochMilli == realTime.toMillis
+
+        assertCompleteAs(op, true)
+    }
+
     real("auto-cede") {
       val forever = IO.unit.foreverM
 
