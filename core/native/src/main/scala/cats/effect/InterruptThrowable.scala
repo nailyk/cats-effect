@@ -16,6 +16,9 @@
 
 package cats.effect
 
-private[effect] abstract class IOCompanionPlatform extends IOCompanionMultithreadedPlatform {
-  this: IO.type =>
+private[effect] object InterruptThrowable {
+  def apply(t: Throwable): Boolean = t match {
+    case _: InterruptedException => true
+    case _ => false
+  }
 }

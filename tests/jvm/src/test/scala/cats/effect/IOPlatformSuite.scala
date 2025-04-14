@@ -20,7 +20,7 @@ import org.scalacheck.Prop.forAll
 
 import scala.concurrent.ExecutionContext
 
-import java.util.concurrent.{CompletableFuture, CountDownLatch, ExecutorService, Executors}
+import java.util.concurrent.{CompletableFuture, ExecutorService, Executors}
 
 trait IOPlatformSuite extends IOConcurrencySuite { this: BaseScalaCheckSuite =>
 
