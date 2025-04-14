@@ -685,17 +685,14 @@ private[effect] final class WorkerThread[P <: AnyRef](
           true
         } else {
           // Spurious wakeup check.
-          var st = parked.get()
+          val st = parked.get()
           if (st eq ParkedSignal.Unparked) {
             // awakened intentionally
             false
           } else if (st eq ParkedSignal.Interrupting) {
             // awakened intentionally, but waiting for the state publish
             // we have to block here to ensure we don't go back to sleep again too fast
-            while ({
-              st = parked.get()
-              st eq ParkedSignal.Interrupting
-            }) {}
+            while (parked.get() eq ParkedSignal.Interrupting) {}
 
             false
           } else {
