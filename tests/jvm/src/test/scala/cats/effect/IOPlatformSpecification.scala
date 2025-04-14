@@ -726,7 +726,7 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
       }
 
       "handle mixed-mode poller/simple interruption with complex timers" in {
-        val delegate = unsafe.SelectorSystem()
+        val delegate = IORuntime.createDefaultPollingSystem()
 
         val (pool, poller, shutdown) = IORuntime.createWorkStealingComputeThreadPool(
           threads = 1,
