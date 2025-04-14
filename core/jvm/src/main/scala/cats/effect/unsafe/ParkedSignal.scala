@@ -16,7 +16,7 @@
 
 package cats.effect.unsafe
 
-sealed trait ParkedSignal extends Product with Serializable
+private sealed abstract class ParkedSignal extends Product with Serializable
 
 object ParkedSignal {
   case object Unparked extends ParkedSignal
