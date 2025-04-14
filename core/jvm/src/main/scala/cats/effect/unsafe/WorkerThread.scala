@@ -638,17 +638,14 @@ private[effect] final class WorkerThread[P <: AnyRef](
       }
 
     def notifyDoneSleeping(): Unit = {
-      var st = parked.get()
+      val st = parked.get()
 
       if (st ne ParkedSignal.Unparked) {
         if (st eq ParkedSignal.Interrupting) {
           // our state is being twiddled; wait for that to finish up
           // this happens when we wake ourselves at the same moment the pool decides to wake us
 
-          while ({
-            st = parked.get()
-            st eq ParkedSignal.Interrupting
-          }) {}
+          while (parked.get() eq ParkedSignal.Interrupting) {}
         } else if (parked.compareAndSet(st, ParkedSignal.Unparked)) {
           // we won the race to awaken ourselves, so we need to let the pool know
           pool.doneSleeping()
