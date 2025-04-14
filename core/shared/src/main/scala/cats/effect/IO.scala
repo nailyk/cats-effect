@@ -1234,9 +1234,11 @@ object IO extends IOCompanionPlatform with IOLowPriorityImplicits with TuplePara
   }
 
   implicit class IOSequenceOps[T[_], A](tioa: T[IO[A]]) {
-    def sequence(implicit T: Traverse[T], G: Applicative[IO]): IO[T[A]] = T.sequence(tioa)(G)
+    def sequence(implicit T: Traverse[T], G: Applicative[IO]): IO[T[A]] =
+      T.sequence(tioa)(using G)
 
-    def sequence_(implicit F: Foldable[T], G: Applicative[IO]): IO[Unit] = F.sequence_(tioa)(G)
+    def sequence_(implicit F: Foldable[T], G: Applicative[IO]): IO[Unit] =
+      F.sequence_(tioa)(using G)
   }
 
   @static private[this] val _alignForIO = new IOAlign
