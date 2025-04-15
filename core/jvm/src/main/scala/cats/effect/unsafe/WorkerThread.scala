@@ -830,10 +830,19 @@ private[effect] final class WorkerThread[P <: AnyRef](
 
             // we have to check for null since there's a race here when threads convert to blockers
             // by reading parked *after* reading state, we avoid misidentifying blockers as blocked
-            if (parked != null && (parked
-                .get() eq ParkedSignal.Unparked) && (state == Thread.State.BLOCKED ||
-                state == Thread.State.WAITING || state == Thread.State.TIMED_WAITING)) {
-              System.err.println(mkWarning(state, thread.getStackTrace()))
+            if (parked != null) {
+              val pst = parked.get()
+
+              val expectAlive =
+                (pst eq ParkedSignal.Unparked) || (pst eq ParkedSignal.Interrupting)
+
+              val actuallyBlocked = state == Thread.State.BLOCKED ||
+                state == Thread.State.WAITING ||
+                state == Thread.State.TIMED_WAITING
+
+              if (expectAlive && actuallyBlocked) {
+                System.err.println(mkWarning(state, thread.getStackTrace()))
+              }
             }
           }
 
