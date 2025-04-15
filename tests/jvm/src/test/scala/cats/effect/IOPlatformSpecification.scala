@@ -752,18 +752,29 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
         implicit val runtime: IORuntime =
           IORuntime.builder().setCompute(pool, shutdown).addPoller(poller, () => ()).build()
 
+        val (scheduler, schedShut) =
+          IORuntime.createDefaultScheduler(threadPrefix = "complex-timer-test")
+
         // just create a bit of chaos with timers and async completion
         val sleeps = 0.until(10).map(i => IO.sleep((i * 10).millis)).toList
+
+        val externalSleeps = 0.until(10).toList map { i =>
+          IO.async_[Unit] { cb =>
+            val _ = scheduler.sleep((i * 10 + 5).millis, () => cb(Right(())))
+            ()
+          }
+        }
 
         val latch = IO.deferred[Unit].flatMap(d => d.complete(()).start *> d.get)
         val latches = 0.until(10).map(_ => latch).toList
 
-        val test = (sleeps ::: latches).parSequence.parReplicateA_(100)
+        val test = (sleeps ::: externalSleeps ::: latches).parSequence.parReplicateA_(100)
 
         try {
           test.unsafeRunTimed(20.seconds) must beSome
         } finally {
           runtime.shutdown()
+          schedShut()
         }
       }
 
