@@ -732,7 +732,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
           // by another thread in the future.
           val len = runtimeBlockingExpiration.length
           val unit = runtimeBlockingExpiration.unit
-          if (pool.cachedThreads.tryTransfer(this, len, unit)) {
+          if (pool.cachedThreads.offerFirst(this, len, unit)) {
             // Someone accepted the transfer of this thread and will transfer the state soon.
             val newState = stateTransfer.take()
             init(newState)
@@ -928,7 +928,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
       // Set the name of this thread to a blocker prefixed name.
       setName(s"$prefix-$nameIndex")
 
-      val cached = pool.cachedThreads.poll()
+      val cached = pool.cachedThreads.pollLast()
       if (cached ne null) {
         // There is a cached worker thread that can be reused.
         val idx = index
