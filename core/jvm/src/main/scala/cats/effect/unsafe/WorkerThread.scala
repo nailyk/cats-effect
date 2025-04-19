@@ -928,7 +928,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
       // Set the name of this thread to a blocker prefixed name.
       setName(s"$prefix-$nameIndex")
 
-      val cached = pool.cachedThreads.pollLast()
+      val cached = pool.cachedThreads.pollFirst()
       if (cached ne null) {
         // There is a cached worker thread that can be reused.
         val idx = index
