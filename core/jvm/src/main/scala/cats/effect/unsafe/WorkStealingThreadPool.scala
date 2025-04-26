@@ -132,7 +132,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
   private[this] val state: AtomicInteger = new AtomicInteger(threadCount << UnparkShift)
 
   private[unsafe] val cachedThreads: LinkedBlockingDeque[WorkerThread[P]] =
-    new LinkedBlockingDeque
+    new LinkedBlockingDeque(1)
 
   /**
    * The shutdown latch of the work stealing thread pool.
