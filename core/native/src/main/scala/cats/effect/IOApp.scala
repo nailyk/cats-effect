@@ -360,7 +360,8 @@ trait IOApp {
       if (isLinux || isMac)
         FileDescriptorPoller.find.toResource.flatMap {
           case Some(poller) =>
-            val dump = IO.blocking(runtime.fiberMonitor.liveFiberSnapshot(System.err.print(_)))
+            val dump =
+              IO.blocking(runtime.fiberMonitor.printLiveFiberSnapshot(System.err.print(_)))
             Signal.foreachDump(poller, dump).background.void
           case None => Resource.unit[IO]
         }

@@ -58,6 +58,41 @@ final class IORuntime private[unsafe] (
   private[effect] val enhancedExceptions: Boolean = config.enhancedExceptions
   private[effect] val traceBufferLogSize: Int = config.traceBufferLogSize
 
+  /**
+   * Obtains a snapshot of the fibers currently live on the [[IORuntime]] which this fiber
+   * monitor instance belongs to.
+   *
+   * The returned [[FiberSnapshot]] contains hard references to the underlying fibers and their
+   * current state, worker assignments, and execution traces. It can be used for debugging,
+   * diagnostics, or visualizations.
+   *
+   * @note
+   *   the snapshot introduces a risk of memory leaks because it retains hard references to the
+   *   underlying Fiber instances. As a result, these fibers cannot be garbage collected while
+   *   the snapshot (or anything that retains it) is still in scope.
+   *
+   * @example
+   *   Print all live fibers grouped by worker:
+   *   {{{
+   *   val printFiberDump: IO[Unit] =
+   *     for {
+   *       // Take a snapshot of all live fibers in the current IORuntime
+   *       snapshot <- IO.delay(runtime.liveFiberSnapshot())
+   *
+   *       // Print fibers assigned to specific worker threads
+   *       _ <- snapshot.workers.toList.traverse_ { case (worker, fibers) =>
+   *         IO.println("Worker " + worker.thread + " #" + worker.index) >>
+   *           fibers.traverse_(fiber => IO.println(fiber.pretty))
+   *       }
+   *
+   *       // Print global fibers (not bound to specific workers, e.g., blocked or external)
+   *       _ <- snapshot.global.traverse_(fiber => IO.println(fiber.pretty))
+   *     } yield ()
+   *   }}}
+   */
+  def liveFiberSnapshot(): FiberSnapshot =
+    fiberMonitor.liveFiberSnapshot()
+
   override def toString: String = s"IORuntime($compute, $scheduler, $config)"
 }
 
