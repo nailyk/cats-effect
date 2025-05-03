@@ -39,7 +39,7 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
 
 import java.time.Instant
 import java.time.temporal.ChronoField
-import java.util.concurrent.{LinkedBlockingDeque, ThreadLocalRandom}
+import java.util.concurrent.{ConcurrentHashMap, SynchronousQueue, ThreadLocalRandom}
 import java.util.concurrent.atomic.{
   AtomicBoolean,
   AtomicInteger,
@@ -131,8 +131,11 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
    */
   private[this] val state: AtomicInteger = new AtomicInteger(threadCount << UnparkShift)
 
-  private[unsafe] val cachedThreads: LinkedBlockingDeque[WorkerThread[P]] =
-    new LinkedBlockingDeque(1)
+  private[unsafe] val stateTransferQueue: SynchronousQueue[WorkerThread.TransferState] =
+    new SynchronousQueue[WorkerThread.TransferState](false)
+
+  private[unsafe] val blockerThreads: ConcurrentHashMap[WorkerThread[P], java.lang.Boolean] =
+    new ConcurrentHashMap()
 
   /**
    * The shutdown latch of the work stealing thread pool.
@@ -749,14 +752,11 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
         system.close()
       }
 
-      var t: WorkerThread[P] = null
+      var ts: WorkerThread.TransferState = new WorkerThread.TransferState()
       while ({
-        t = cachedThreads.pollFirst()
-        t ne null
-      }) {
-        t.interrupt()
-        // don't bother joining, cached threads are not doing anything interesting
-      }
+        ts = stateTransferQueue.poll()
+        ts ne null
+      }) {}
 
       // Drain the external queue.
       externalQueue.clear()
