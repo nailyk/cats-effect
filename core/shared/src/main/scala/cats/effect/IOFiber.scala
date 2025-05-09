@@ -27,7 +27,7 @@ import scala.concurrent.duration._
 import java.util.concurrent.RejectedExecutionException
 import java.util.concurrent.atomic.AtomicBoolean
 
-import Platform.{ static, volatileNative }
+import Platform.{static, volatileNative}
 
 /*
  * Rationale on memory barrier exploitation in this class...
