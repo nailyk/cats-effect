@@ -22,5 +22,5 @@ private object Platform {
   final val isNative = false
 
   class static extends scala.annotation.Annotation
-  final class safePublish extends scala.annotation.Annotation
+  final class volatileNative extends scala.annotation.Annotation
 }

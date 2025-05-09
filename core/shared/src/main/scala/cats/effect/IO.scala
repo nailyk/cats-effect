@@ -62,7 +62,7 @@ import scala.util.{Failure, Success, Try}
 import java.util.UUID
 import java.util.concurrent.Executor
 
-import Platform.{static, safePublish}
+import Platform.static
 
 /**
  * A pure abstraction representing the intention to perform a side effect, where the result of
@@ -2202,7 +2202,6 @@ object IO extends IOCompanionPlatform with IOLowPriorityImplicits with TuplePara
 
   // implementations
 
-  @safePublish
   private[effect] final case class Pure[+A](value: A) extends IO[A] {
     def tag = 0
     override def toString: String = s"IO($value)"
