@@ -26,7 +26,7 @@ import scala.concurrent.{BlockContext, CanAwait}
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
 import java.lang.Long.MIN_VALUE
-import java.util.concurrent.{ThreadLocalRandom, TimeUnit}
+import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicBoolean
 
 import WorkerThread.{Metrics, TransferState}
@@ -713,7 +713,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
       if (blocking) {
         // The worker thread was blocked before. It is no longer part of the
         // core pool and needs to be cached.
-        val stateToTransfer = transferState
+
         // First of all, remove the references to data structures of the core
         // pool because they have already been transferred to another thread
         // which took the place of this one.
@@ -727,32 +727,31 @@ private[effect] final class WorkerThread[P <: AnyRef](
         transferState = null
 
         try {
-          // Try to transfer this thread via the stateTransferQueue to be picked up
+          // Try to transfer this thread via the cached threads data structure, to be picked up
           // by another thread in the future.
-          val st = stateToTransfer
           val len = runtimeBlockingExpiration.length
           val unit = runtimeBlockingExpiration.unit
-          val timeoutNanos = unit.toNanos(len)
 
-          if (pool.stateTransferQueue.offer(st)) {
-            // Someone accepted the transfer of this thread and will transfer the state soon.
-            val newState = pool.stateTransferQueue.poll(timeoutNanos, TimeUnit.NANOSECONDS)
-            if (newState ne null) {
-              init(newState)
-            } else {
-              // The timeout elapsed and no one woke up this thread. It's time to exit.
-              pool.blockedWorkerThreadCounter.decrementAndGet()
-              return
-            }
+          // Try to poll for a new state from the transfer queue
+          val newState = pool.transferStateQueue.poll(len, unit)
+
+          if (newState ne null) {
+            // Got a state to take over
+            init(newState)
+
           } else {
-            // Nobody polling, spawn new replacement was done in prepareForBlocking
+            // No state to take over after timeout, exit
             pool.blockedWorkerThreadCounter.decrementAndGet()
+            // Remove from blocker threads map if present
+            pool.blockerThreads.remove(this)
             return
           }
         } catch {
           case _: InterruptedException =>
             // This thread was interrupted while cached. This should only happen
-            // during the shutdown of the pool. Nothing else to be done, just exit.
+            // during the shutdown of the pool. Nothing else to be done, just
+            // exit.
+            pool.blockerThreads.remove(this)
             return
         }
       }
@@ -935,16 +934,18 @@ private[effect] final class WorkerThread[P <: AnyRef](
       // Set the name of this thread to a blocker prefixed name.
       setName(s"$prefix-$nameIndex")
 
-      val ts = transferState
-      val available = pool.stateTransferQueue.poll(0, TimeUnit.MILLISECONDS)
-      if (available ne null) {
-        // There is a cached worker thread that can be reused.
-        val idx = index
-        pool.replaceWorker(idx, this)
-        // Transfer the data structures to the cached thread and wake it up.
-        ts.index = idx
-        ts.tick = tick + 1
-        val _ = pool.stateTransferQueue.offer(ts)
+      val idx = index
+
+      // Prepare the transfer state
+      transferState.index = idx
+      transferState.tick = tick + 1
+
+      val _ = pool.blockerThreads.put(this, java.lang.Boolean.TRUE)
+
+      if (pool.transferStateQueue.offer(transferState)) {
+        // If successful, a waiting thread will pick it up
+        // Register this thread in the blockerThreads map
+
       } else {
         // Spawn a new `WorkerThread`, a literal clone of this one. It is safe to
         // transfer ownership of the local queue and the parked signal to the new
@@ -969,7 +970,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
             system,
             _poller,
             metrics,
-            transferState,
+            new WorkerThread.TransferState,
             pool)
         // Make sure the clone gets our old name:
         val clonePrefix = pool.threadPrefix
@@ -1010,6 +1011,8 @@ private[effect] final class WorkerThread[P <: AnyRef](
     setName(s"$prefix-${_index}")
 
     blocking = false
+
+    pool.replaceWorker(newIdx, this)
   }
 
   /**
