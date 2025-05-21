@@ -345,6 +345,15 @@ trait IOApp {
       .map(_.equalsIgnoreCase("true"))
       .getOrElse(true)
 
+  /**
+   * Attempts to detect whether the given thread is the main thread.
+   */
+  private def isMainThread(thread: Thread): Boolean =
+    thread.getName == "main" &&
+      thread.getThreadGroup.getName == "main" &&
+      thread.getThreadGroup.getParent != null &&
+      thread.getThreadGroup.getParent.getName == "system"
+
   private def onNonMainThreadDetected(): Unit = {
     if (warnOnNonMainThreadDetected)
       System
@@ -383,8 +392,7 @@ trait IOApp {
   def run(args: List[String]): IO[ExitCode]
 
   final def main(args: Array[String]): Unit = {
-    // checked in openjdk 8-17; this attempts to detect when we're running under artificial environments, like sbt
-    val isForked = Thread.currentThread().getId() == 1
+    val isForked = isMainThread(Thread.currentThread())
     if (!isForked) onNonMainThreadDetected()
 
     val installed = if (runtime == null) {
