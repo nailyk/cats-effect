@@ -1004,19 +1004,6 @@ private[effect] final class WorkerThread[P <: AnyRef](
     blocking = false
   }
 
-  /**
-   * Returns the number of fibers which are currently asynchronously suspended and tracked by
-   * this worker thread.
-   *
-   * @note
-   *   This counter is not synchronized due to performance reasons and might be reporting
-   *   out-of-date numbers.
-   *
-   * @return
-   *   the number of asynchronously suspended fibers
-   */
-  def getSuspendedFiberCount(): Int =
-    fiberBag.size
 }
 
 private[effect] object WorkerThread {

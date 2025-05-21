@@ -839,7 +839,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
     var sum = 0L
     var i = 0
     while (i < threadCount) {
-      sum += workerThreads.get(i).getSuspendedFiberCount().toLong
+      sum += fiberBags(i).size.toLong
       i += 1
     }
     sum
