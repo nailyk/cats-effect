@@ -1548,7 +1548,11 @@ private final class IOFiber[A](
     // but we don't worry about those since we are just looking for a single `TraceEvent`
     // which references user-land code
     val opAndCallSite =
-      Tracing.getFrames(tracingEvents).headOption.map(frame => s": $frame").getOrElse("")
+      Option(tracingEvents)
+        .flatMap { tracingEvents =>
+          Tracing.getFrames(tracingEvents).headOption.map(frame => s": $frame")
+        }
+        .getOrElse("")
 
     s"cats.effect.IOFiber@${System.identityHashCode(this).toHexString} $state$opAndCallSite"
   }
