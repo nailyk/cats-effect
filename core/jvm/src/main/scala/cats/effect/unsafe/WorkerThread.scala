@@ -940,11 +940,11 @@ private[effect] final class WorkerThread[P <: AnyRef](
       transferState.index = idx
       transferState.tick = tick + 1
 
+      // Register this thread in the blockerThreads map
       val _ = pool.blockerThreads.put(this, java.lang.Boolean.TRUE)
 
       if (pool.transferStateQueue.offer(transferState)) {
         // If successful, a waiting thread will pick it up
-        // Register this thread in the blockerThreads map
 
       } else {
         // Spawn a new `WorkerThread`, a literal clone of this one. It is safe to
@@ -970,7 +970,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
             system,
             _poller,
             metrics,
-            new WorkerThread.TransferState,
+            transferState,
             pool)
         // Make sure the clone gets our old name:
         val clonePrefix = pool.threadPrefix
