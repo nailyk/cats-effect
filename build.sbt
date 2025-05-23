@@ -363,7 +363,7 @@ Global / tlCommandAliases ++= Map(
 
 lazy val nativeTestSettings = Seq(
   nativeConfig ~= { c =>
-    c.withSourceLevelDebuggingConfig(_.enableAll) // enable generation of debug information
+    c.withSourceLevelDebuggingConfig(_.enableAll.generateFunctionSourcePositions(false)) // `true` causes segfaults(?)
       .withOptimize(false) // disable Scala Native optimizer
       .withMode(Mode.debug) // compile using LLVM without optimizations
   },
