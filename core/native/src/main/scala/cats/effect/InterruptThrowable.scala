@@ -22,5 +22,7 @@ private[effect] object InterruptThrowable {
     case _ => false
   }
 
-  def ClosedByInterrupt(t: Throwable): Boolean = false
+  def ClosedByInterrupt(t: Throwable): Boolean = t match {
+    case _ => false
+  }
 }
