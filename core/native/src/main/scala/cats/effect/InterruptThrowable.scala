@@ -21,4 +21,6 @@ private[effect] object InterruptThrowable {
     case _: InterruptedException => true
     case _ => false
   }
+
+  def ClosedByInterrupt(t: Throwable): Boolean = false
 }

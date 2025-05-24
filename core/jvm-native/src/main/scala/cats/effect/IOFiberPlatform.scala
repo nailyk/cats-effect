@@ -64,9 +64,7 @@ private[effect] abstract class IOFiberPlatform[A] extends AtomicBoolean(false) {
                     try {
                       Right(cur.thunk())
                     } catch {
-                      case t if InterruptThrowable(t) => throw t
-
-                      // this won't suppress InterruptedException:
+                      case t if InterruptThrowable.ClosedByInterrupt(t) => throw t
                       case t if UnsafeNonFatal(t) => Left(t)
                     }
 
