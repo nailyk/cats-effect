@@ -139,14 +139,31 @@ object SecureRandom extends SecureRandomCompanionPlatform {
    * on Linux, macOS, and BSD. Unsupported platforms such as Windows will encounter link-time
    * errors.
    */
-  override def javaSecuritySecureRandom[F[_]: Sync]: F[SecureRandom[F]] =
-    javaSecuritySecureRandomGeneric
+  override def javaSecuritySecureRandom[F[_]: Sync]: F[SecureRandom[F]] = of
+
+  /**
+   * Builds a `SecureRandom[F]` value for effect types that are [[cats.effect.kernel.Sync]] and
+   * initializes random state using the same effect type
+   *
+   * On the JVM, delegates to [[java.security.SecureRandom]].
+   *
+   * In browsers, delegates to the
+   * [[https://developer.mozilla.org/en-US/docs/Web/API/Web_Crypto_API Web Crypto API]].
+   *
+   * In Node.js, delegates to the [[https://nodejs.org/api/crypto.html crypto module]].
+   *
+   * On Native, delegates to
+   * [[https://man7.org/linux/man-pages/man3/getentropy.3.html getentropy]] which is supported
+   * on Linux, macOS, and BSD. Unsupported platforms such as Windows will encounter link-time
+   * errors.
+   */
+  override def of[F[_]: Sync]: F[SecureRandom[F]] = in[F, F]
 
   /**
    * Builds a `SecureRandom[G]` value for effect types that are [[cats.effect.kernel.Sync]] but
    * initializes random state using another effect constructor
    */
-  override def javaSecuritySecureRandomGeneric[F[_]: Sync, G[_]: Sync]: F[SecureRandom[G]] =
-    super.javaSecuritySecureRandomGeneric[F, G]
+  override def in[F[_]: Sync, G[_]: Sync]: F[SecureRandom[G]] =
+    Sync[F].delay(unsafeJavaSecuritySecureRandom[G]())
 
 }

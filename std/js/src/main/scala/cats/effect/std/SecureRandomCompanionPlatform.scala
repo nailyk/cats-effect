@@ -114,10 +114,13 @@ private[std] trait SecureRandomCompanionPlatform {
     }
   }
 
+  @deprecated("Use 'of' instead", "3.7.0")
   def javaSecuritySecureRandom[F[_]: Sync]: F[SecureRandom[F]] =
-    javaSecuritySecureRandomGeneric
+    Sync[F].delay(unsafeJavaSecuritySecureRandom())
 
-  def javaSecuritySecureRandomGeneric[F[_]: Sync, G[_]: Sync]: F[SecureRandom[G]] =
+  def of[F[_]: Sync]: F[SecureRandom[F]] = in[F, F]
+
+  def in[F[_]: Sync, G[_]: Sync]: F[SecureRandom[G]] =
     Sync[F].delay(unsafeJavaSecuritySecureRandom[G]())
 
   private[effect] def unsafeJavaSecuritySecureRandom[F[_]: Sync](): SecureRandom[F] =

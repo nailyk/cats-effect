@@ -43,10 +43,13 @@ private[std] trait SecureRandomCompanionPlatform {
   private def javaUtilRandomBlocking[F[_]: Sync](random: JavaSecureRandom): SecureRandom[F] =
     new ScalaRandom[F](Applicative[F].pure(random), Sync.Type.Blocking) with SecureRandom[F] {}
 
+  @deprecated("Use 'of' instead", "3.7.0")
   def javaSecuritySecureRandom[F[_]: Sync]: F[SecureRandom[F]] =
-    javaSecuritySecureRandomGeneric
+    Sync[F].delay(unsafeJavaSecuritySecureRandom())
 
-  def javaSecuritySecureRandomGeneric[F[_]: Sync, G[_]: Sync]: F[SecureRandom[G]] =
+  def of[F[_]: Sync]: F[SecureRandom[F]] = in[F, F]
+
+  def in[F[_]: Sync, G[_]: Sync]: F[SecureRandom[G]] =
     Sync[F].delay(unsafeJavaSecuritySecureRandom[G]())
 
   /**
