@@ -49,11 +49,12 @@ class TestConsoleSpec extends BaseSuite {
   }
 
   real("TestConsole.write should fail when closed") {
-    TestConsole.resource[IO].use { console =>
-      for {
-        _ <- console.close
-        result <- console.write("foo").attempt
-      } yield assertEquals(result.leftMap(_.getMessage), Left("Console is closed"))
+    TestConsole.resource[IO].allocated.flatMap {
+      case (console, close) =>
+        for {
+          _ <- close
+          result <- console.write("foo").attempt
+        } yield assertEquals(result.leftMap(_.getMessage), Left("Console is closed"))
     }
   }
 
@@ -246,53 +247,54 @@ class TestConsoleSpec extends BaseSuite {
     }
   }
 
-  real("TestConsole.close should clean up any blocked reads") {
-    TestConsole.resource[IO].use { console =>
-      TestControl.executeEmbed {
-        (
-          console.readLineWithCharset(StandardCharsets.UTF_8).attempt,
-          console
-            .readLineWithCharset(StandardCharsets.UTF_8)
-            .attempt
-            .map(_.leftMap(_.getMessage))
-            .delayBy(10.millis),
-          console.writeln("foo").attempt.delayBy(20.millis),
-          console.close.delayBy(30.millis)
-        ).parMapN {
-          case (fooRead, barRead, write, _) =>
-            assertEquals(
-              (fooRead, barRead, write),
-              (Right("foo"), Left("End Of File"), Right(()))
-            )
-        } *> console.activityLog.flatMap { log =>
-          // Non-determinism is fun.
-          // The result itself is stable, but the failure may be logged before
-          // or after the transition to 'Closed' is logged
-          if (log == """|=== Activity Log ===
-                        |Reading stdIn [id: 0]
-                        |Reading stdIn [id: 1]
-                        |Writing line to stdin: foo
-                        |Read from stdin [id: 0]: foo
-                        |Closing
-                        |Notifying 1 pending read requests
-                        |Read from stdin failed [id: 1]: java.io.EOFException: End Of File
-                        |Closed
-                        |=== Current State ===
-                        |Closed""".stripMargin) IO.unit
-          else if (log == """|=== Activity Log ===
-                             |Reading stdIn [id: 0]
-                             |Reading stdIn [id: 1]
-                             |Writing line to stdin: foo
-                             |Read from stdin [id: 0]: foo
-                             |Closing
-                             |Notifying 1 pending read requests
-                             |Closed
-                             |Read from stdin failed [id: 1]: java.io.EOFException: End Of File
-                             |=== Current State ===
-                             |Closed""".stripMargin) IO.unit
-          else IO(fail("Unexpected activity log", clues(log)))
+  real("TestConsole should clean up any blocked reads when released") {
+    TestConsole.resource[IO].allocated.flatMap {
+      case (console, close) =>
+        TestControl.executeEmbed {
+          (
+            console.readLineWithCharset(StandardCharsets.UTF_8).attempt,
+            console
+              .readLineWithCharset(StandardCharsets.UTF_8)
+              .attempt
+              .map(_.leftMap(_.getMessage))
+              .delayBy(10.millis),
+            console.writeln("foo").attempt.delayBy(20.millis),
+            close.delayBy(30.millis)
+          ).parMapN {
+            case (fooRead, barRead, write, _) =>
+              assertEquals(
+                (fooRead, barRead, write),
+                (Right("foo"), Left("End Of File"), Right(()))
+              )
+          } *> console.activityLog.flatMap { log =>
+            // Non-determinism is fun.
+            // The result itself is stable, but the failure may be logged before
+            // or after the transition to 'Closed' is logged
+            if (log == """|=== Activity Log ===
+                          |Reading stdIn [id: 0]
+                          |Reading stdIn [id: 1]
+                          |Writing line to stdin: foo
+                          |Read from stdin [id: 0]: foo
+                          |Closing
+                          |Notifying 1 pending read requests
+                          |Read from stdin failed [id: 1]: java.io.EOFException: End Of File
+                          |Closed
+                          |=== Current State ===
+                          |Closed""".stripMargin) IO.unit
+            else if (log == """|=== Activity Log ===
+                               |Reading stdIn [id: 0]
+                               |Reading stdIn [id: 1]
+                               |Writing line to stdin: foo
+                               |Read from stdin [id: 0]: foo
+                               |Closing
+                               |Notifying 1 pending read requests
+                               |Closed
+                               |Read from stdin failed [id: 1]: java.io.EOFException: End Of File
+                               |=== Current State ===
+                               |Closed""".stripMargin) IO.unit
+            else IO(fail("Unexpected activity log", clues(log)))
+          }
         }
-      }
     }
   }
 

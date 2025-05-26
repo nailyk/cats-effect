@@ -158,7 +158,7 @@ final class TestConsole[F[_]: Parallel](
    * Any blocked calls to [[readLineWithCharset]] terminate with a raised
    * [[java.io.EOFException]]
    */
-  def close: F[Unit] = stdInSemaphore.permit.use { _ =>
+  private def close: F[Unit] = stdInSemaphore.permit.use { _ =>
     stdInStateRef
       .get
       .flatTap(_ => log("Closing"))
@@ -233,25 +233,6 @@ final class TestConsole[F[_]: Parallel](
 object TestConsole {
 
   /**
-   * Create a [[TestConsole]] instance without lifecycle management
-   *
-   * <h>CAUTION</h>
-   *
-   * Be careful to ensure that [[TestConsole.close]] is called before the end of the test, to
-   * make sure that no fibers are blocked waiting on a call to
-   * [[TestConsole.readLineWithCharset]]
-   */
-  def unsafe[F[_]: Concurrent: Parallel]: F[TestConsole[F]] =
-    (
-      Semaphore[F](1L),
-      Ref.of[F, TestStdInState[F]](TestStdInState.Waiting[F](Chain.empty, PartialLine.empty)),
-      Ref.empty[F, Chain[String]],
-      Ref.empty[F, Chain[String]],
-      Ref.empty[F, Chain[String]],
-      Ref.of[F, Int](0)
-    ).mapN(new TestConsole[F](_, _, _, _, _, _))
-
-  /**
    * Create a resource which instantiates and closes a [[TestConsole]]
    *
    * This is the preferred usage pattern, as it ensures that no fibers are left blocked on calls
@@ -261,6 +242,16 @@ object TestConsole {
     Resource.make[F, TestConsole[F]](unsafe[F])(_.close.recover {
       case ConsoleClosedException() => ()
     })
+
+  private def unsafe[F[_]: Concurrent: Parallel]: F[TestConsole[F]] =
+    (
+      Semaphore[F](1L),
+      Ref.of[F, TestStdInState[F]](TestStdInState.Waiting[F](Chain.empty, PartialLine.empty)),
+      Ref.empty[F, Chain[String]],
+      Ref.empty[F, Chain[String]],
+      Ref.empty[F, Chain[String]],
+      Ref.of[F, Int](0)
+    ).mapN(new TestConsole[F](_, _, _, _, _, _))
 
   private[testkit] final case class ConsoleClosedException()
       extends IllegalStateException("Console is closed")
