@@ -367,7 +367,7 @@ lazy val nativeTestSettings = Seq(
       .withOptimize(false) // disable Scala Native optimizer
       .withMode(Mode.debug) // compile using LLVM without optimizations
   },
-  envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "8g") else Map.empty[String, String] },
+  envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "10g") else Map.empty[String, String] },
   parallelExecution := !inCI
 )
 
