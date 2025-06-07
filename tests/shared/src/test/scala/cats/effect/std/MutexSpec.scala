@@ -27,6 +27,12 @@ import scala.concurrent.duration._
 
 final class MutexSpec extends BaseSpec with DetectPlatform {
 
+  if (System.getProperty("os.name").toLowerCase.contains("windows")) {
+    // these tests seem oddly flaky on windows post #4377
+    val _ = sequential
+    ()
+  }
+
   final override def executionTimeout = 2.minutes
 
   "ConcurrentMutex" should {
