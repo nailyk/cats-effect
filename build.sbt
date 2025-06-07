@@ -729,7 +729,10 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       // package-private classes moved to the `cats.effect.unsafe.metrics` package
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvation"),
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvation$"),
-      ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvationMBean")
+      ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvationMBean"),
+      // protected constructor modified when fixing #4359
+      ProblemFilters.exclude[DirectMissingMethodProblem](
+        "cats.effect.unsafe.IORuntimeBuilder.<init>$default$10")
     ) ++ {
       if (tlIsScala3.value) {
         // Scala 3 specific exclusions
@@ -914,9 +917,7 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         ProblemFilters.exclude[DirectMissingMethodProblem](
           "cats.effect.unsafe.IORuntimeBuilder.extraPollers"),
         ProblemFilters.exclude[DirectMissingMethodProblem](
-          "cats.effect.unsafe.IORuntimeBuilder.extraPollers_="),
-        ProblemFilters.exclude[DirectMissingMethodProblem](
-          "cats.effect.unsafe.IORuntimeBuilder.<init>$default$10")
+          "cats.effect.unsafe.IORuntimeBuilder.extraPollers_=")
       )
     },
     mimaBinaryIssueFilters ++= {
