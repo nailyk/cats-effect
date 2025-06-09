@@ -140,6 +140,18 @@ class FileDescriptorPollerSpec extends BaseSpec {
         pipe.read(new Array[Byte](1), 0, 1).as(false).timeoutTo(1.second, IO.pure(true))
       }
     }
+
+    "handle EPOLLHUP events" in real {
+      mkPipe.use { pipe =>
+        for {
+          buf <- IO(new Array[Byte](4))
+          _ <- pipe.write(Array[Byte](1, 2, 3), 0, 3)
+          _ <- pipe.read(buf, 0, 3)
+          _ <- IO(unistd.close(pipe.writeFd))
+          _ <- pipe.read(buf, 3, 1)
+        } yield buf.toList must be_==(List[Byte](1, 2, 3, 0))
+      }
+    }
   }
 
 }
