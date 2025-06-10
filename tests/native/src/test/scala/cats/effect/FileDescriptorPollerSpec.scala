@@ -101,6 +101,41 @@ class FileDescriptorPollerSpec extends BaseSpec {
           }
       }
 
+  def mkReadOnlyPipe: Resource[IO, (Int, Int, FileDescriptorPollHandle)] =
+    Resource
+      .make {
+        IO {
+          val fd = stackalloc[CInt](2.toULong)
+          if (unistd.pipe(fd) != 0)
+            throw new IOException(fromCString(strerror(errno)))
+          (fd(0), fd(1))
+        }
+      } {
+        case (readFd, writeFd) =>
+          IO {
+            unistd.close(readFd)
+            unistd.close(writeFd)
+            ()
+          }
+      }
+      .evalTap {
+        case (readFd, writeFd) =>
+          IO {
+            if (fcntl(readFd, F_SETFL, O_NONBLOCK) != 0)
+              throw new IOException(fromCString(strerror(errno)))
+            if (fcntl(writeFd, F_SETFL, O_NONBLOCK) != 0)
+              throw new IOException(fromCString(strerror(errno)))
+          }
+      }
+      .flatMap {
+        case (readFd, writeFd) =>
+          Resource.eval(FileDescriptorPoller.get).flatMap { poller =>
+            poller.registerFileDescriptor(readFd, true, false).map { readHandle =>
+              (readFd, writeFd, readHandle)
+            }
+          }
+      }
+
   "FileDescriptorPoller" should {
 
     "notify read-ready events" in real {
@@ -141,17 +176,32 @@ class FileDescriptorPollerSpec extends BaseSpec {
       }
     }
 
-    "handle EPOLLHUP events" in real {
-      mkPipe.use { pipe =>
-        for {
-          buf <- IO(new Array[Byte](4))
-          _ <- pipe.write(Array[Byte](1, 2, 3), 0, 3)
-          _ <- pipe.read(buf, 0, 3)
-          _ <- IO(unistd.close(pipe.writeFd))
-          _ <- pipe.read(buf, 3, 1)
-        } yield buf.toList must be_==(List[Byte](1, 2, 3, 0))
+    "pollReadRec reads until EPOLLHUP then terminates with EOF" in real {
+      mkReadOnlyPipe.use {
+        case (readFd, writeFd, readHandle) =>
+          for {
+            buf <- IO(new Array[Byte](1))
+            reader <- {
+              readHandle.pollReadRec(()) { _ =>
+                IO {
+                  val n = unistd.read(readFd, buf.atUnsafe(0), 1.toULong)
+                  if (n > 0) Right(Some(n.toInt))
+                  else if (n == 0) Right(None)
+                  else if (errno == EAGAIN || errno == EWOULDBLOCK) Left(())
+                  else throw new IOException(fromCString(strerror(errno)))
+                }
+              }
+            }.start
+
+            writer <- IO {
+              unistd.close(writeFd)
+            }.start
+
+            readerResult <- reader.joinWithNever
+            _ <- writer.joinWithNever
+          } yield readerResult must be_==(None)
       }
     }
-  }
 
+  }
 }
