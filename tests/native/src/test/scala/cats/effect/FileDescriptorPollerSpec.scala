@@ -65,7 +65,7 @@ class FileDescriptorPollerSpec extends BaseSpec {
       Right(rtn)
   }
 
-  def pipeResource: Resource[IO, (Int, Int)] =
+  def pipeHandle: Resource[IO, (Int, Int)] =
     Resource
       .make {
         IO {
@@ -93,7 +93,7 @@ class FileDescriptorPollerSpec extends BaseSpec {
       }
 
   def mkPipe: Resource[IO, Pipe] =
-    pipeResource.flatMap {
+    pipeHandle.flatMap {
       case (readFd, writeFd) =>
         Resource.eval(FileDescriptorPoller.get).flatMap { poller =>
           (
@@ -104,7 +104,7 @@ class FileDescriptorPollerSpec extends BaseSpec {
     }
 
   def mkReadOnlyPipe: Resource[IO, (Int, Int, FileDescriptorPollHandle)] =
-    pipeResource.flatMap {
+    pipeHandle.flatMap {
       case (readFd, writeFd) =>
         Resource.eval(FileDescriptorPoller.get).flatMap { poller =>
           poller.registerFileDescriptor(readFd, true, false).map { readHandle =>
