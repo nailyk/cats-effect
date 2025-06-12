@@ -51,21 +51,21 @@ class FileDescriptorPollerSpec extends BaseSpec {
           IO(guard(unistd.write(writeFd, buf.atUnsafe(offset), length.toULong)))
         }
         .void
-
-    private def guard(thunk: => CInt): Either[Unit, CInt] = {
-      val rtn = thunk
-      if (rtn < 0) {
-        val en = errno
-        if (en == EAGAIN || en == EWOULDBLOCK)
-          Left(())
-        else
-          throw new IOException(fromCString(strerror(errno)))
-      } else
-        Right(rtn)
-    }
   }
 
-  def mkPipe: Resource[IO, Pipe] =
+  def guard(thunk: => CInt): Either[Unit, CInt] = {
+    val rtn = thunk
+    if (rtn < 0) {
+      val en = errno
+      if (en == EAGAIN || en == EWOULDBLOCK)
+        Left(())
+      else
+        throw new IOException(fromCString(strerror(errno)))
+    } else
+      Right(rtn)
+  }
+
+  def pipeResource: Resource[IO, (Int, Int)] =
     Resource
       .make {
         IO {
@@ -89,52 +89,29 @@ class FileDescriptorPollerSpec extends BaseSpec {
               throw new IOException(fromCString(strerror(errno)))
             if (fcntl(writeFd, F_SETFL, O_NONBLOCK) != 0)
               throw new IOException(fromCString(strerror(errno)))
-          }
-      }
-      .flatMap {
-        case (readFd, writeFd) =>
-          Resource.eval(FileDescriptorPoller.get).flatMap { poller =>
-            (
-              poller.registerFileDescriptor(readFd, true, false),
-              poller.registerFileDescriptor(writeFd, false, true)
-            ).mapN(new Pipe(readFd, writeFd, _, _))
           }
       }
 
-  def mkReadOnlyPipe: Resource[IO, (Int, Int, FileDescriptorPollHandle)] =
-    Resource
-      .make {
-        IO {
-          val fd = stackalloc[CInt](2.toULong)
-          if (unistd.pipe(fd) != 0)
-            throw new IOException(fromCString(strerror(errno)))
-          (fd(0), fd(1))
+  def mkPipe: Resource[IO, Pipe] =
+    pipeResource.flatMap {
+      case (readFd, writeFd) =>
+        Resource.eval(FileDescriptorPoller.get).flatMap { poller =>
+          (
+            poller.registerFileDescriptor(readFd, true, false),
+            poller.registerFileDescriptor(writeFd, false, true)
+          ).mapN(new Pipe(readFd, writeFd, _, _))
         }
-      } {
-        case (readFd, writeFd) =>
-          IO {
-            unistd.close(readFd)
-            unistd.close(writeFd)
-            ()
+    }
+
+  def mkReadOnlyPipe: Resource[IO, (Int, Int, FileDescriptorPollHandle)] =
+    pipeResource.flatMap {
+      case (readFd, writeFd) =>
+        Resource.eval(FileDescriptorPoller.get).flatMap { poller =>
+          poller.registerFileDescriptor(readFd, true, false).map { readHandle =>
+            (readFd, writeFd, readHandle)
           }
-      }
-      .evalTap {
-        case (readFd, writeFd) =>
-          IO {
-            if (fcntl(readFd, F_SETFL, O_NONBLOCK) != 0)
-              throw new IOException(fromCString(strerror(errno)))
-            if (fcntl(writeFd, F_SETFL, O_NONBLOCK) != 0)
-              throw new IOException(fromCString(strerror(errno)))
-          }
-      }
-      .flatMap {
-        case (readFd, writeFd) =>
-          Resource.eval(FileDescriptorPoller.get).flatMap { poller =>
-            poller.registerFileDescriptor(readFd, true, false).map { readHandle =>
-              (readFd, writeFd, readHandle)
-            }
-          }
-      }
+        }
+    }
 
   "FileDescriptorPoller" should {
 
@@ -183,13 +160,7 @@ class FileDescriptorPollerSpec extends BaseSpec {
             buf <- IO(new Array[Byte](1))
             reader <- {
               readHandle.pollReadRec(()) { _ =>
-                IO {
-                  val n = unistd.read(readFd, buf.atUnsafe(0), 1.toULong)
-                  if (n > 0) Right(Some(n.toInt))
-                  else if (n == 0) Right(None)
-                  else if (errno == EAGAIN || errno == EWOULDBLOCK) Left(())
-                  else throw new IOException(fromCString(strerror(errno)))
-                }
+                IO(guard(unistd.read(readFd, buf.atUnsafe(0), 1.toULong)))
               }
             }.start
 
@@ -199,7 +170,7 @@ class FileDescriptorPollerSpec extends BaseSpec {
 
             readerResult <- reader.joinWithNever
             _ <- writer.joinWithNever
-          } yield readerResult must be_==(None)
+          } yield readerResult must be_==(0)
       }
     }
 
