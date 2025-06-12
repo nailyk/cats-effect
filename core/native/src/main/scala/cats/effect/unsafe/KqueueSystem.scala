@@ -71,9 +71,17 @@ object KqueueSystem extends PollingSystem {
 
   def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
 
+  trait Kqueue extends FileDescriptorPoller {
+    def awaitEvent(
+        ident: Int,
+        filter: Short,
+        flags: CUnsignedShort,
+        fflags: CUnsignedInt): IO[Long]
+  }
+
   private final class FileDescriptorPollerImpl private[KqueueSystem] (
       ctx: PollingContext[Poller]
-  ) extends FileDescriptorPoller {
+  ) extends Kqueue {
     def registerFileDescriptor(
         fd: Int,
         reads: Boolean,
@@ -82,6 +90,21 @@ object KqueueSystem extends PollingSystem {
       Resource.eval {
         (Mutex[IO], Mutex[IO]).mapN {
           new PollHandle(ctx, fd, _, _)
+        }
+      }
+
+    override def awaitEvent(
+        ident: Int,
+        filter: Short,
+        flags: CUnsignedShort,
+        fflags: CUnsignedInt
+    ): IO[Long] =
+      IO.async[Long] { cb =>
+        IO.async_[Option[IO[Unit]]] { cancelCb =>
+          ctx.accessPoller { kq =>
+            kq.evSet(ident, filter, fflags, flags, cb)
+            cancelCb(Right(Some(IO(kq.removeCallback(ident, filter)))))
+          }
         }
       }
   }
@@ -104,10 +127,10 @@ object KqueueSystem extends PollingSystem {
             if (r.isRight)
               IO.unit
             else
-              IO.async[Unit] { kqcb =>
+              IO.async[Long] { kqcb =>
                 IO.async_[Option[IO[Unit]]] { cb =>
                   ctx.accessPoller { kqueue =>
-                    kqueue.evSet(fd, EVFILT_READ, EV_ADD.toUShort, kqcb)
+                    kqueue.evSet(fd, EVFILT_READ, 0.toUInt, EV_ADD.toUShort, kqcb)
                     cb(Right(Some(IO(kqueue.removeCallback(fd, EVFILT_READ)))))
                   }
                 }
@@ -124,10 +147,10 @@ object KqueueSystem extends PollingSystem {
             if (r.isRight)
               IO.unit
             else
-              IO.async[Unit] { kqcb =>
+              IO.async[Long] { kqcb =>
                 IO.async_[Option[IO[Unit]]] { cb =>
                   ctx.accessPoller { kqueue =>
-                    kqueue.evSet(fd, EVFILT_WRITE, EV_ADD.toUShort, kqcb)
+                    kqueue.evSet(fd, EVFILT_WRITE, 0.toUInt, EV_ADD.toUShort, kqcb)
                     cb(Right(Some(IO(kqueue.removeCallback(fd, EVFILT_WRITE)))))
                   }
                 }
@@ -163,13 +186,15 @@ object KqueueSystem extends PollingSystem {
     private[KqueueSystem] def evSet(
         ident: Int,
         filter: Short,
+        fflags: CUnsignedInt,
         flags: CUnsignedShort,
-        cb: Either[Throwable, Unit] => Unit
+        cb: Either[Throwable, Long] => Unit
     ): Unit = {
       val event = eventlist + changeCount.toLong
 
       event.ident = ident.toUSize
       event.filter = filter
+      event.fflags = fflags
       event.flags = (flags.toInt | EV_ONESHOT).toUShort
 
       callbacks.update(encodeKevent(ident, filter), cb)
@@ -253,7 +278,7 @@ object KqueueSystem extends PollingSystem {
           cb(
             if ((event.flags.toLong & EV_ERROR) != 0)
               Left(new IOException(fromCString(strerror(event.data.toInt))))
-            else Either.unit
+            else Right(event.data)
           )
           fibersRescheduled = true
         }
