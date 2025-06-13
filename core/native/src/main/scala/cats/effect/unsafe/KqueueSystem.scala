@@ -75,8 +75,8 @@ object KqueueSystem extends PollingSystem {
     def awaitEvent(
         ident: Int,
         filter: Short,
-        flags: CUnsignedShort,
-        fflags: CUnsignedInt): IO[Long]
+        flags: Short,
+        fflags: Int): IO[Long]
   }
 
   private final class KqueueImpl private[KqueueSystem] (
