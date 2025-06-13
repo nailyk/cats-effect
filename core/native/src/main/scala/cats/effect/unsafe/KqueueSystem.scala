@@ -79,7 +79,7 @@ object KqueueSystem extends PollingSystem {
         fflags: CUnsignedInt): IO[Long]
   }
 
-  private final class FileDescriptorPollerImpl private[KqueueSystem] (
+  private final class KqueueImpl private[KqueueSystem] (
       ctx: PollingContext[Poller]
   ) extends Kqueue {
     def registerFileDescriptor(
