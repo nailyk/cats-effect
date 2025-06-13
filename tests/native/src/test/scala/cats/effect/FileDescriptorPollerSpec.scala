@@ -162,7 +162,7 @@ class FileDescriptorPollerSpec extends BaseSpec {
             reader <- {
               readHandle.pollReadRec(()) { _ =>
                 IO(guard(unistd.read(readFd, buf.atUnsafe(0), 1.toULong))).flatTap {
-                  case Left(_) => gate.complete().attempt.void
+                  case Left(_) => gate.complete(()).attempt.void
                   case Right(_) => IO.unit
                 }
               }
