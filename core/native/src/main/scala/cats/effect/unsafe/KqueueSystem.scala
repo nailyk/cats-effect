@@ -178,7 +178,7 @@ object KqueueSystem extends PollingSystem {
       event.fflags = fflags
       event.flags = (flags.toInt | EV_ONESHOT).toUShort
 
-
+      callbacks.update(encodeKevent(ident, filter), cb)
 
       changeCount += 1
     }
