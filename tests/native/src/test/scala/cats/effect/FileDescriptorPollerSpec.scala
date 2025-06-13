@@ -158,11 +158,17 @@ class FileDescriptorPollerSpec extends BaseSpec {
         case (readFd, writeFd, readHandle) =>
           for {
             buf <- IO(new Array[Byte](1))
+            gate <- Deferred[IO, Unit]
             reader <- {
               readHandle.pollReadRec(()) { _ =>
-                IO(guard(unistd.read(readFd, buf.atUnsafe(0), 1.toULong)))
+                IO(guard(unistd.read(readFd, buf.atUnsafe(0), 1.toULong))).flatTap {
+                  case Left(_) => gate.complete().attempt.void
+                  case Right(_) => IO.unit
+                }
               }
             }.start
+
+            _ <- gate.get
 
             writer <- IO {
               unistd.close(writeFd)
