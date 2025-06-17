@@ -238,4 +238,40 @@ object AtomicCell {
         }
       }
   }
+
+  /**
+   * Allows seeing a `AtomicCell[F, Option[A]]` as a `AtomicCell[F, A]`. This is useful not only
+   * for ergonomic reasons, but because some implementations may save space.
+   *
+   * Setting the `default` value is the same as storing a `None` in the underlying `AtomicCell`.
+   */
+  def defaultedAtomicCell[F[_], A](
+      atomicCell: AtomicCell[F, Option[A]],
+      default: A
+  )(
+      implicit F: Applicative[F]
+  ): AtomicCell[F, A] =
+    new DefaultedAtomicCell[F, A](atomicCell, default)
+
+  private[effect] final class DefaultedAtomicCell[F[_], A](
+      atomicCell: AtomicCell[F, Option[A]],
+      default: A
+  )(
+      implicit F: Applicative[F]
+  ) extends CommonImpl[F, A] {
+    override def get: F[A] =
+      atomicCell.get.map(_.getOrElse(default))
+
+    override def set(a: A): F[Unit] =
+      if (a == default) atomicCell.set(None) else atomicCell.set(Some(a))
+
+    override def evalModify[B](f: A => F[(A, B)]): F[B] =
+      atomicCell.evalModify { opt =>
+        val a = opt.getOrElse(default)
+        f(a).map {
+          case (result, b) =>
+            if (result == default) (None, b) else (Some(result), b)
+        }
+      }
+  }
 }
