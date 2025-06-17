@@ -160,27 +160,12 @@ object AtomicCell {
       implicit F: Concurrent[F]): F[AtomicCell[F, A]] =
     (Ref.of[F, A](init), Mutex.apply[F]).mapN { (ref, m) => new ConcurrentImpl(ref, m) }
 
-  private final class ConcurrentImpl[F[_], A](
-      ref: Ref[F, A],
-      mutex: Mutex[F]
-  )(
-      implicit F: Concurrent[F]
+  // Provides common implementations for derived methods that depend on F being an applicative.
+  private[effect] sealed abstract class CommonImpl[F[_], A](
+      implicit F: Applicative[F]
   ) extends AtomicCell[F, A] {
-    override def get: F[A] = ref.get
-
-    override def set(a: A): F[Unit] =
-      mutex.lock.surround(ref.set(a))
-
     override def modify[B](f: A => (A, B)): F[B] =
       evalModify(a => F.pure(f(a)))
-
-    override def evalModify[B](f: A => F[(A, B)]): F[B] =
-      mutex.lock.surround {
-        ref.get.flatMap(f).flatMap {
-          case (a, b) =>
-            ref.set(a).as(b)
-        }
-      }
 
     override def evalUpdate(f: A => F[A]): F[Unit] =
       evalModify(a => f(a).map(aa => (aa, ())))
@@ -192,12 +177,33 @@ object AtomicCell {
       evalModify(a => f(a).map(aa => (aa, aa)))
   }
 
-  private final class AsyncImpl[F[_], A](
+  private[effect] final class ConcurrentImpl[F[_], A](
+      ref: Ref[F, A],
+      mutex: Mutex[F]
+  )(
+      implicit F: Concurrent[F]
+  ) extends CommonImpl[F, A] {
+    override def get: F[A] =
+      ref.get
+
+    override def set(a: A): F[Unit] =
+      mutex.lock.surround(ref.set(a))
+
+    override def evalModify[B](f: A => F[(A, B)]): F[B] =
+      mutex.lock.surround {
+        ref.get.flatMap(f).flatMap {
+          case (a, b) =>
+            ref.set(a).as(b)
+        }
+      }
+  }
+
+  private[effect] final class AsyncImpl[F[_], A](
       init: A,
       mutex: Mutex[F]
   )(
       implicit F: Async[F]
-  ) extends AtomicCell[F, A] {
+  ) extends CommonImpl[F, A] {
     @volatile private var cell: A = init
 
     override def get: F[A] =
@@ -212,9 +218,6 @@ object AtomicCell {
         }
       }
 
-    override def modify[B](f: A => (A, B)): F[B] =
-      evalModify(a => F.pure(f(a)))
-
     override def evalModify[B](f: A => F[(A, B)]): F[B] =
       mutex.lock.surround {
         F.delay(cell).flatMap(f).flatMap {
@@ -225,14 +228,5 @@ object AtomicCell {
             }
         }
       }
-
-    override def evalUpdate(f: A => F[A]): F[Unit] =
-      evalModify(a => f(a).map(aa => (aa, ())))
-
-    override def evalGetAndUpdate(f: A => F[A]): F[A] =
-      evalModify(a => f(a).map(aa => (aa, a)))
-
-    override def evalUpdateAndGet(f: A => F[A]): F[A] =
-      evalModify(a => f(a).map(aa => (aa, aa)))
   }
 }
