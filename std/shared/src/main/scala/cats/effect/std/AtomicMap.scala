@@ -47,5 +47,20 @@ object AtomicMap {
    * Creates a new `AtomicMap`.
    */
   def apply[F[_], K, V](implicit F: Concurrent[F]): F[AtomicMap[F, K, Option[V]]] =
-    ???
+    (KeyedMutex[F, K], MapRef[F, K, V]).mapN { (keyedMutex, valuesMapRef) =>
+      new ConcurrentImpl(keyedMutex, valuesMapRef)
+    }
+
+  private[effect] final class ConcurrentImpl[F[_], K, V](
+      keyedMutex: KeyedMutex[F, K],
+      valuesMapRef: MapRef[F, K, Option[V]]
+  )(
+      implicit F: Concurrent[F]
+  ) extends AtomicMap[F, K, Option[V]] {
+    override def apply(key: K): AtomicCell[F, Option[V]] =
+      new AtomicCell.ConcurrentImpl(
+        ref = valuesMapRef(key),
+        lock = keyedMutex.lock(key)
+      )
+  }
 }
