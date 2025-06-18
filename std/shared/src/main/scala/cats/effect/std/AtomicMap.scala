@@ -63,4 +63,30 @@ object AtomicMap {
         lock = keyedMutex.lock(key)
       )
   }
+
+  /**
+   * Allows seeing a `AtomicMap[F, K, Option[V]]` as a `AtomicMap[F, K, A]`. This is useful not
+   * only for ergonomic reasons, but because it can be used to prevent space leaks over high
+   * arity `AtomicMaps`.
+   *
+   * Setting the `default` value is the same as storing a `None` in the underlying `AtomicMap`
+   * for the given key.
+   */
+  def defaultedAtomicMap[F[_], K, V](
+      atomicMap: AtomicMap[F, K, Option[V]],
+      default: V
+  )(
+      implicit F: Applicative[F]
+  ): AtomicMap[F, K, V] =
+    new DefaultedAtomicMap[F, K, V](atomicMap, default)
+
+  private[effect] final class DefaultedAtomicMap[F[_], K, V](
+      atomicMap: AtomicMap[F, K, Option[V]],
+      default: V
+  )(
+      implicit F: Applicative[F]
+  ) extends AtomicMap[F, K, V] {
+    override def apply(key: K): AtomicCell[F, V] =
+      AtomicCell.defaultedAtomicCell(atomicCell = atomicMap(key), default)
+  }
 }
