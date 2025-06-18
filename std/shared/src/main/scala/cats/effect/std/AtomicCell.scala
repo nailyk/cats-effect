@@ -274,4 +274,56 @@ object AtomicCell {
         }
       }
   }
+
+  implicit def atomicCellOptionSyntax[F[_], A](
+      atomicCell: AtomicCell[F, Option[A]]
+  )(
+      implicit F: Applicative[F]
+  ): AtomicCellOptionOps[F, A] =
+    new AtomicCellOptionOps(atomicCell)
+
+  final class AtomicCellOptionOps[F[_], A] private[effect] (
+      atomicCell: AtomicCell[F, Option[A]]
+  )(
+      implicit F: Applicative[F]
+  ) {
+    def getOrElse(default: A): F[A] =
+      atomicCell.get.map(_.getOrElse(default))
+
+    def unset: F[Unit] =
+      atomicCell.set(None)
+
+    def setValue(a: A): F[Unit] =
+      atomicCell.set(Some(a))
+
+    def modifyValueIfSet[B](f: A => (A, B)): F[Option[B]] =
+      evalModifyValueIfSet(a => F.pure(f(a)))
+
+    def evalModifyValueIfSet[B](f: A => F[(A, B)]): F[Option[B]] =
+      atomicCell.evalModify {
+        case None =>
+          F.pure((None, None))
+
+        case Some(a) =>
+          f(a).map {
+            case (result, b) =>
+              (Some(result), Some(b))
+          }
+      }
+
+    def updateValueIfSet(f: A => A): F[Unit] =
+      evalUpdateValueIfSet(a => F.pure(f(a)))
+
+    def evalUpdateValueIfSet(f: A => F[A]): F[Unit] =
+      atomicCell.evalUpdate {
+        case None => F.pure(None)
+        case Some(a) => f(a).map(Some.apply)
+      }
+
+    def getAndSetValue(a: A): F[Option[A]] =
+      atomicCell.getAndSet(Some(a))
+
+    def withDefaultValue(default: A): AtomicCell[F, A] =
+      defaultedAtomicCell(atomicCell, default)
+  }
 }
