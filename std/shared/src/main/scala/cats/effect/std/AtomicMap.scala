@@ -89,4 +89,44 @@ object AtomicMap {
     override def apply(key: K): AtomicCell[F, V] =
       AtomicCell.defaultedAtomicCell(atomicCell = atomicMap(key), default)
   }
+
+  implicit def atomicMapOptionSyntax[F[_], K, V](
+      atomicMap: AtomicMap[F, K, Option[V]]
+  )(
+      implicit F: Applicative[F]
+  ): AtomicMapOptionOps[F, K, V] =
+    new AtomicMapOptionOps(atomicMap)
+
+  final class AtomicMapOptionOps[F[_], K, V] private[effect] (
+      atomicMap: AtomicMap[F, K, Option[V]]
+  )(
+      implicit F: Applicative[F]
+  ) {
+    def getOrElse(key: K, default: V): F[V] =
+      atomicMap(key).getOrElse(default)
+
+    def unsetKey(key: K): F[Unit] =
+      atomicMap(key).unset
+
+    def setValue(key: K, value: V): F[Unit] =
+      atomicMap(key).setValue(value)
+
+    def modifyValueIfSet[B](key: K)(f: V => (V, B)): F[Option[B]] =
+      atomicMap(key).modifyValueIfSet(f)
+
+    def evalModifyValueIfSet[B](key: K)(f: V => F[(V, B)]): F[Option[B]] =
+      atomicMap(key).evalModifyValueIfSet(f)
+
+    def updateValueIfSet(key: K)(f: V => V): F[Unit] =
+      atomicMap(key).updateValueIfSet(f)
+
+    def evalUpdateValueIfSet(key: K)(f: V => F[V]): F[Unit] =
+      atomicMap(key).evalUpdateValueIfSet(f)
+
+    def getAndSetValue(key: K, value: V): F[Option[V]] =
+      atomicMap(key).getAndSetValue(value)
+
+    def withDefaultValue(default: V): AtomicMap[F, K, V] =
+      defaultedAtomicMap(atomicMap, default)
+  }
 }
