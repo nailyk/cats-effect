@@ -729,7 +729,10 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       // package-private classes moved to the `cats.effect.unsafe.metrics` package
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvation"),
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvation$"),
-      ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvationMBean")
+      ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvationMBean"),
+      // protected constructor modified when fixing #4359
+      ProblemFilters.exclude[DirectMissingMethodProblem](
+        "cats.effect.unsafe.IORuntimeBuilder.<init>$default$10")
     ) ++ {
       if (tlIsScala3.value) {
         // Scala 3 specific exclusions
@@ -906,7 +909,15 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         ProblemFilters.exclude[MissingClassProblem]("cats.effect.unsafe.FiberExecutor"),
         ProblemFilters.exclude[IncompatibleMethTypeProblem](
           "cats.effect.unsafe.FiberMonitorImpl.this"),
-        ProblemFilters.exclude[MissingClassProblem]("cats.effect.unsafe.FiberMonitorPlatform")
+        ProblemFilters.exclude[MissingClassProblem]("cats.effect.unsafe.FiberMonitorPlatform"),
+        // all of the following are introduced by fixing #4359
+        // the first one is legitimate and was a public signature in 3.6.x (but a silently non-functional one)
+        ProblemFilters.exclude[DirectMissingMethodProblem](
+          "cats.effect.unsafe.IORuntimeBuilder.addPoller"),
+        ProblemFilters.exclude[DirectMissingMethodProblem](
+          "cats.effect.unsafe.IORuntimeBuilder.extraPollers"),
+        ProblemFilters.exclude[DirectMissingMethodProblem](
+          "cats.effect.unsafe.IORuntimeBuilder.extraPollers_=")
       )
     },
     mimaBinaryIssueFilters ++= {
