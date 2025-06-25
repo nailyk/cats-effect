@@ -71,13 +71,10 @@ object KqueueSystem extends PollingSystem {
 
   def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
 
-  trait Kqueue extends FileDescriptorPoller {
-    def awaitEvent(ident: Int, filter: Short, flags: Short, fflags: Int): IO[Long]
-  }
-
   private final class KqueueImpl private[KqueueSystem] (
       ctx: PollingContext[Poller]
-  ) extends Kqueue {
+  ) extends Kqueue
+      with FileDescriptorPoller {
     def registerFileDescriptor(
         fd: Int,
         reads: Boolean,
@@ -85,7 +82,7 @@ object KqueueSystem extends PollingSystem {
     ): Resource[IO, FileDescriptorPollHandle] =
       Resource.eval {
         (Mutex[IO], Mutex[IO]).mapN {
-          new PollHandle(fd, _, _, awaitEvent)
+          new PollHandle(fd, _, _)
         }
       }
 
@@ -103,44 +100,43 @@ object KqueueSystem extends PollingSystem {
           }
         }
       }
+
+    private final class PollHandle(
+        fd: Int,
+        readMutex: Mutex[IO],
+        writeMutex: Mutex[IO]
+    ) extends FileDescriptorPollHandle {
+
+      def pollReadRec[A, B](a: A)(f: A => IO[Either[A, B]]): IO[B] =
+        readMutex.lock.surround {
+          a.tailRecM { a =>
+            f(a).flatTap { r =>
+              if (r.isRight)
+                IO.unit
+              else
+                awaitEvent(fd, EVFILT_READ, EV_ADD, 0)
+            }
+          }
+        }
+
+      def pollWriteRec[A, B](a: A)(f: A => IO[Either[A, B]]): IO[B] =
+        writeMutex.lock.surround {
+          a.tailRecM { a =>
+            f(a).flatTap { r =>
+              if (r.isRight)
+                IO.unit
+              else
+                awaitEvent(fd, EVFILT_WRITE, EV_ADD, 0)
+            }
+          }
+        }
+
+    }
   }
 
   // A kevent is identified by the (ident, filter) pair; there may only be one unique kevent per kqueue
   @inline private def encodeKevent(ident: Int, filter: Short): Long =
     (filter.toLong << 32) | ident.toLong
-
-  private final class PollHandle(
-      fd: Int,
-      readMutex: Mutex[IO],
-      writeMutex: Mutex[IO],
-      awaitEvent: (Int, Short, Short, Int) => IO[Long]
-  ) extends FileDescriptorPollHandle {
-
-    def pollReadRec[A, B](a: A)(f: A => IO[Either[A, B]]): IO[B] =
-      readMutex.lock.surround {
-        a.tailRecM { a =>
-          f(a).flatTap { r =>
-            if (r.isRight)
-              IO.unit
-            else
-              awaitEvent(fd, EVFILT_READ, EV_ADD, 0)
-          }
-        }
-      }
-
-    def pollWriteRec[A, B](a: A)(f: A => IO[Either[A, B]]): IO[B] =
-      writeMutex.lock.surround {
-        a.tailRecM { a =>
-          f(a).flatTap { r =>
-            if (r.isRight)
-              IO.unit
-            else
-              awaitEvent(fd, EVFILT_WRITE, EV_ADD, 0)
-          }
-        }
-      }
-
-  }
 
   final class Poller private[KqueueSystem] (kqfd: Int) {
 
