@@ -735,23 +735,20 @@ private[effect] final class WorkerThread[P <: AnyRef](
           // Try to poll for a new state from the transfer queue
           val newState = pool.transferStateQueue.poll(len, unit)
 
-          if (newState ne null) {
+          if ((newState ne null) && (newState ne WorkerThread.transferStateSentinel)) {
             // Got a state to take over
             init(newState)
-
           } else {
-            // No state to take over after timeout, exit
+            // No state to take over after timeout (or we're shutting down), exit
             pool.blockedWorkerThreadCounter.decrementAndGet()
-            // Remove from blocker threads map if present
-            pool.blockerThreads.remove(this)
             return
           }
         } catch {
           case _: InterruptedException =>
             // This thread was interrupted while cached. This should only happen
             // during the shutdown of the pool. Nothing else to be done, just
-            // exit.
-            pool.blockerThreads.remove(this)
+            // exit. (Note, that if we're shutting down ourselves, we're doing
+            // that with `transferStateSentinel`, see above.)
             return
         }
       }
@@ -940,12 +937,8 @@ private[effect] final class WorkerThread[P <: AnyRef](
       transferState.index = idx
       transferState.tick = tick + 1
 
-      // Register this thread in the blockerThreads map
-      val _ = pool.blockerThreads.put(this, java.lang.Boolean.TRUE)
-
       if (pool.transferStateQueue.offer(transferState)) {
         // If successful, a waiting thread will pick it up
-
       } else {
         // Spawn a new `WorkerThread`, a literal clone of this one. It is safe to
         // transfer ownership of the local queue and the parked signal to the new
@@ -1036,6 +1029,10 @@ private[effect] object WorkerThread {
     var index: Int = _
     var tick: Int = _
   }
+
+  /** We use this to signal interrupt to cached threads */
+  private[unsafe] val transferStateSentinel: TransferState =
+    new TransferState
 
   final class Metrics {
     private[this] var idleTime: Long = 0
