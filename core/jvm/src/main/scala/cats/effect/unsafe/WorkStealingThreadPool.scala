@@ -39,7 +39,7 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
 
 import java.time.Instant
 import java.time.temporal.ChronoField
-import java.util.concurrent.{ConcurrentHashMap, SynchronousQueue, ThreadLocalRandom}
+import java.util.concurrent.{SynchronousQueue, ThreadLocalRandom}
 import java.util.concurrent.atomic.{
   AtomicBoolean,
   AtomicInteger,
