@@ -733,7 +733,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
           val unit = runtimeBlockingExpiration.unit
 
           // Try to poll for a new state from the transfer queue
-          val newState = pool.transferStateQueue.poll(len, unit)
+          val newState = pool.transferStateStack.poll(len, unit)
 
           if ((newState ne null) && (newState ne WorkerThread.transferStateSentinel)) {
             // Got a state to take over
@@ -937,7 +937,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
       transferState.index = idx
       transferState.tick = tick + 1
 
-      if (pool.transferStateQueue.offer(transferState)) {
+      if (pool.transferStateStack.offer(transferState)) {
         // If successful, a waiting thread will pick it up
       } else {
         // Spawn a new `WorkerThread`, a literal clone of this one. It is safe to
