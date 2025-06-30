@@ -512,26 +512,38 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
         ok
       }
 
-      "cached threads should be used in LIFO order" in real {
-        for {
-          // create 3 blocker threads, which will be cached in order:
-          th1 <- IO(new AtomicReference[Thread])
-          fib1 <- IO.blocking { th1.set(Thread.currentThread()); Thread.sleep(200L) }.start
-          th2 <- IO(new AtomicReference[Thread])
-          fib2 <- IO.blocking { th2.set(Thread.currentThread()); Thread.sleep(400L) }.start
-          th3 <- IO(new AtomicReference[Thread])
-          fib3 <- IO.blocking { th3.set(Thread.currentThread()); Thread.sleep(600L) }.start
-          _ <- fib1.join
-          _ <- fib2.join
-          _ <- fib3.join
-          // now we have 3 cached threads, and when we do `blocking`, the LAST one should be used,
-          // so the first 2 should remain cached (blocked in SynchronousQueue#poll):
-          _ <- IO.blocking { Thread.sleep(100L) }
-          _ <- IO.cede // move back to the WSTP
-          _ <- IO { th1.get().getState() mustEqual Thread.State.TIMED_WAITING }
-          _ <- IO { th2.get().getState() mustEqual Thread.State.TIMED_WAITING }
-          _ <- IO { th3.get().getState() must not(beEqualTo(Thread.State.TIMED_WAITING)) }
-        } yield ok
+      "cached threads should be used in LIFO order" in {
+        val (pool, poller, shutdown) = IORuntime.createWorkStealingComputeThreadPool(
+          threads = 1,
+          pollingSystem = SleepSystem)
+
+        implicit val runtime: IORuntime =
+          IORuntime.builder().setCompute(pool, shutdown).addPoller(poller, () => ()).build()
+
+        try {
+          val test = for {
+            // create 3 blocker threads, which will be cached in order:
+            th1 <- IO(new AtomicReference[Thread])
+            fib1 <- IO.blocking { th1.set(Thread.currentThread()); Thread.sleep(200L) }.start
+            th2 <- IO(new AtomicReference[Thread])
+            fib2 <- IO.blocking { th2.set(Thread.currentThread()); Thread.sleep(400L) }.start
+            th3 <- IO(new AtomicReference[Thread])
+            fib3 <- IO.blocking { th3.set(Thread.currentThread()); Thread.sleep(600L) }.start
+            _ <- fib1.join
+            _ <- fib2.join
+            _ <- fib3.join
+            // now we have 3 cached threads, and when we do `blocking`, the LAST one should be used,
+            // so the first 2 should remain cached (blocked in SynchronousQueue#poll):
+            _ <- IO.blocking { Thread.sleep(100L) }
+            _ <- IO.cede // move back to the WSTP
+            _ <- IO { th1.get().getState() mustEqual Thread.State.TIMED_WAITING }
+            _ <- IO { th2.get().getState() mustEqual Thread.State.TIMED_WAITING }
+            _ <- IO { th3.get().getState() must not(beEqualTo(Thread.State.TIMED_WAITING)) }
+          } yield ok
+          test.unsafeRunSync()
+        } finally {
+          runtime.shutdown()
+        }
       }
 
       trait DummyPoller {
