@@ -132,7 +132,9 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
   private[this] val state: AtomicInteger = new AtomicInteger(threadCount << UnparkShift)
 
   private[unsafe] val transferStateStack: SynchronousQueue[WorkerThread.TransferState] =
-    new SynchronousQueue[WorkerThread.TransferState](false) // Note: we use the queue in UNfair mode, so it's a stack really
+    new SynchronousQueue[WorkerThread.TransferState](
+      false
+    ) // Note: we use the queue in UNfair mode, so it's a stack really
 
   /**
    * The shutdown latch of the work stealing thread pool.

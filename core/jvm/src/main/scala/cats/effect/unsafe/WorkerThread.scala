@@ -1030,7 +1030,9 @@ private[effect] object WorkerThread {
     var tick: Int = _
   }
 
-  /** We use this to signal interrupt to cached threads */
+  /**
+   * We use this to signal interrupt to cached threads
+   */
   private[unsafe] val transferStateSentinel: TransferState =
     new TransferState
 
