@@ -133,7 +133,12 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
 
   private[unsafe] val transferStateStack: SynchronousQueue[WorkerThread.TransferState] =
     new SynchronousQueue[WorkerThread.TransferState](
-      false // Note: we use the queue in UNfair mode, so it's a stack really
+      // Note: we use the queue in UNfair mode, so it's a stack really
+      // (we depend on an implementation detail of openjdk, where unfair
+      // SynchronousQueue is implemented with a stack). This is important
+      // so that older cached threads can time out and shut down even
+      // if there are frequent blocking operations (see issue #4382).
+      false
     )
 
   /**
