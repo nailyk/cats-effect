@@ -39,7 +39,7 @@ import scala.concurrent.duration.{Duration, FiniteDuration}
 
 import java.time.Instant
 import java.time.temporal.ChronoField
-import java.util.concurrent.{LinkedTransferQueue, ThreadLocalRandom}
+import java.util.concurrent.{SynchronousQueue, ThreadLocalRandom}
 import java.util.concurrent.atomic.{
   AtomicBoolean,
   AtomicInteger,
@@ -131,8 +131,15 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
    */
   private[this] val state: AtomicInteger = new AtomicInteger(threadCount << UnparkShift)
 
-  private[unsafe] val cachedThreads: LinkedTransferQueue[WorkerThread[P]] =
-    new LinkedTransferQueue
+  private[unsafe] val transferStateStack: SynchronousQueue[WorkerThread.TransferState] =
+    new SynchronousQueue[WorkerThread.TransferState](
+      // Note: we use the queue in UNfair mode, so it's a stack really
+      // (we depend on an implementation detail of openjdk, where unfair
+      // SynchronousQueue is implemented with a stack). This is important
+      // so that older cached threads can time out and shut down even
+      // if there are frequent blocking operations (see issue #4382).
+      false
+    )
 
   /**
    * The shutdown latch of the work stealing thread pool.
@@ -749,12 +756,8 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
         system.close()
       }
 
-      var t: WorkerThread[P] = null
-      while ({
-        t = cachedThreads.poll()
-        t ne null
-      }) {
-        t.interrupt()
+      // signal cached threads to shut down:
+      while (transferStateStack.offer(WorkerThread.transferStateSentinel)) {
         // don't bother joining, cached threads are not doing anything interesting
       }
 

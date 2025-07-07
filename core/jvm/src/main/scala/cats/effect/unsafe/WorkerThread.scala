@@ -26,7 +26,7 @@ import scala.concurrent.{BlockContext, CanAwait}
 import scala.concurrent.duration.{Duration, FiniteDuration}
 
 import java.lang.Long.MIN_VALUE
-import java.util.concurrent.{ArrayBlockingQueue, ThreadLocalRandom}
+import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicBoolean
 
 import WorkerThread.{Metrics, TransferState}
@@ -110,7 +110,6 @@ private[effect] final class WorkerThread[P <: AnyRef](
    */
   private[this] var _active: Runnable = _
 
-  private val stateTransfer: ArrayBlockingQueue[TransferState] = new ArrayBlockingQueue(1)
   private[this] val runtimeBlockingExpiration: Duration = pool.runtimeBlockingExpiration
 
   private[effect] var currentIOFiber: IOFiber[?] = _
@@ -732,12 +731,15 @@ private[effect] final class WorkerThread[P <: AnyRef](
           // by another thread in the future.
           val len = runtimeBlockingExpiration.length
           val unit = runtimeBlockingExpiration.unit
-          if (pool.cachedThreads.tryTransfer(this, len, unit)) {
-            // Someone accepted the transfer of this thread and will transfer the state soon.
-            val newState = stateTransfer.take()
+
+          // Try to poll for a new state from the transfer queue
+          val newState = pool.transferStateStack.poll(len, unit)
+
+          if ((newState ne null) && (newState ne WorkerThread.transferStateSentinel)) {
+            // Got a state to take over
             init(newState)
           } else {
-            // The timeout elapsed and no one woke up this thread. It's time to exit.
+            // No state to take over after timeout (or we're shutting down), exit
             pool.blockedWorkerThreadCounter.decrementAndGet()
             return
           }
@@ -745,7 +747,8 @@ private[effect] final class WorkerThread[P <: AnyRef](
           case _: InterruptedException =>
             // This thread was interrupted while cached. This should only happen
             // during the shutdown of the pool. Nothing else to be done, just
-            // exit.
+            // exit. (Note, that if we're shutting down ourselves, we're doing
+            // that with `transferStateSentinel`, see above.)
             return
         }
       }
@@ -928,15 +931,14 @@ private[effect] final class WorkerThread[P <: AnyRef](
       // Set the name of this thread to a blocker prefixed name.
       setName(s"$prefix-$nameIndex")
 
-      val cached = pool.cachedThreads.poll()
-      if (cached ne null) {
-        // There is a cached worker thread that can be reused.
-        val idx = index
-        pool.replaceWorker(idx, cached)
-        // Transfer the data structures to the cached thread and wake it up.
-        transferState.index = idx
-        transferState.tick = tick + 1
-        val _ = cached.stateTransfer.offer(transferState)
+      val idx = index
+
+      // Prepare the transfer state
+      transferState.index = idx
+      transferState.tick = tick + 1
+
+      if (pool.transferStateStack.offer(transferState)) {
+        // If successful, a waiting thread will pick it up
       } else {
         // Spawn a new `WorkerThread`, a literal clone of this one. It is safe to
         // transfer ownership of the local queue and the parked signal to the new
@@ -1002,6 +1004,8 @@ private[effect] final class WorkerThread[P <: AnyRef](
     setName(s"$prefix-${_index}")
 
     blocking = false
+
+    pool.replaceWorker(newIdx, this)
   }
 
 }
@@ -1012,6 +1016,12 @@ private[effect] object WorkerThread {
     var index: Int = _
     var tick: Int = _
   }
+
+  /**
+   * We use this to signal interrupt to cached threads
+   */
+  private[unsafe] val transferStateSentinel: TransferState =
+    new TransferState
 
   final class Metrics {
     private[this] var idleTime: Long = 0
