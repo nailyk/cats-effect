@@ -51,21 +51,21 @@ class FileDescriptorPollerSpec extends BaseSpec {
           IO(guard(unistd.write(writeFd, buf.atUnsafe(offset), length.toULong)))
         }
         .void
-
-    private def guard(thunk: => CInt): Either[Unit, CInt] = {
-      val rtn = thunk
-      if (rtn < 0) {
-        val en = errno
-        if (en == EAGAIN || en == EWOULDBLOCK)
-          Left(())
-        else
-          throw new IOException(fromCString(strerror(errno)))
-      } else
-        Right(rtn)
-    }
   }
 
-  def mkPipe: Resource[IO, Pipe] =
+  def guard(thunk: => CInt): Either[Unit, CInt] = {
+    val rtn = thunk
+    if (rtn < 0) {
+      val en = errno
+      if (en == EAGAIN || en == EWOULDBLOCK)
+        Left(())
+      else
+        throw new IOException(fromCString(strerror(errno)))
+    } else
+      Right(rtn)
+  }
+
+  def pipeHandle: Resource[IO, (Int, Int)] =
     Resource
       .make {
         IO {
@@ -91,15 +91,27 @@ class FileDescriptorPollerSpec extends BaseSpec {
               throw new IOException(fromCString(strerror(errno)))
           }
       }
-      .flatMap {
-        case (readFd, writeFd) =>
-          Resource.eval(FileDescriptorPoller.get).flatMap { poller =>
-            (
-              poller.registerFileDescriptor(readFd, true, false),
-              poller.registerFileDescriptor(writeFd, false, true)
-            ).mapN(new Pipe(readFd, writeFd, _, _))
+
+  def mkPipe: Resource[IO, Pipe] =
+    pipeHandle.flatMap {
+      case (readFd, writeFd) =>
+        Resource.eval(FileDescriptorPoller.get).flatMap { poller =>
+          (
+            poller.registerFileDescriptor(readFd, true, false),
+            poller.registerFileDescriptor(writeFd, false, true)
+          ).mapN(new Pipe(readFd, writeFd, _, _))
+        }
+    }
+
+  def mkReadOnlyPipe: Resource[IO, (Int, Int, FileDescriptorPollHandle)] =
+    pipeHandle.flatMap {
+      case (readFd, writeFd) =>
+        Resource.eval(FileDescriptorPoller.get).flatMap { poller =>
+          poller.registerFileDescriptor(readFd, true, false).map { readHandle =>
+            (readFd, writeFd, readHandle)
           }
-      }
+        }
+    }
 
   "FileDescriptorPoller" should {
 
@@ -140,6 +152,28 @@ class FileDescriptorPollerSpec extends BaseSpec {
         pipe.read(new Array[Byte](1), 0, 1).as(false).timeoutTo(1.second, IO.pure(true))
       }
     }
-  }
 
+    "pollReadRec reads until EPOLLHUP then terminates with EOF" in real {
+      mkReadOnlyPipe.use {
+        case (readFd, writeFd, readHandle) =>
+          for {
+            buf <- IO(new Array[Byte](1))
+            gate <- Deferred[IO, Unit]
+            _ <- {
+              readHandle.pollReadRec(()) { _ =>
+                IO(guard(unistd.read(readFd, buf.atUnsafe(0), 1.toULong))).flatTap {
+                  case Left(_) => gate.complete(())
+                  case Right(_) => IO.unit
+                }
+              }
+            }.background.use { readerIO =>
+              gate.get >> IO {
+                unistd.close(writeFd)
+              } >> readerIO
+            }
+          } yield ok
+      }
+    }
+
+  }
 }

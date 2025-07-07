@@ -26,10 +26,10 @@ sealed abstract class CI(
   override val toString: String = {
     val commands =
       (List(
+        "scalafmtSbtCheck",
         s"project $rootProject",
         jsEnv.fold("")(env => s"set Global / useJSEnv := JSEnv.$env"),
         "headerCheck",
-        "scalafmtSbtCheck",
         "scalafmtCheckAll",
         "javafmtCheckAll",
         "clean"
