@@ -625,7 +625,8 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
 
         def processReadyEvents(poller: Poller): Boolean = false
 
-        def needsPoll(poller: Poller): Boolean = false
+        // if we don't claim to need polling, then the worker won't bother calling it
+        def needsPoll(poller: Poller): Boolean = true
 
         def interrupt(targetThread: Thread, poller: Poller): Unit = {
           wasInterrupted.set(true)
@@ -756,6 +757,59 @@ trait IOPlatformSpecification extends DetectPlatform { self: BaseSpec with Scala
           runtime.shutdown()
         }
         poller.wasInterrupted.get() must beTrue
+      }
+
+      "handle mixed-mode poller/simple interruption with complex timers" in {
+        val delegate = IORuntime.createDefaultPollingSystem()
+
+        val (pool, poller, shutdown) = IORuntime.createWorkStealingComputeThreadPool(
+          threads = 1,
+          shutdownTimeout = 60.seconds,
+          pollingSystem = new PollingSystem {
+            type Api = delegate.Api
+            type Poller = delegate.Poller
+            def makeApi(ctx: PollingContext[Poller]) = delegate.makeApi(ctx)
+            def close() = delegate.close()
+            def makePoller() = delegate.makePoller()
+            def closePoller(poller: Poller) = delegate.closePoller(poller)
+            def poll(poller: Poller, nanos: Long) = delegate.poll(poller, nanos)
+
+            // allows us to test what happens when some threads suspend with polling and some simple
+            def needsPoll(poller: Poller) = math.random() >= 0.5d
+
+            def interrupt(thread: Thread, poller: Poller) = delegate.interrupt(thread, poller)
+            def metrics(poller: Poller) = delegate.metrics(poller)
+            def processReadyEvents(poller: Poller) = delegate.processReadyEvents(poller)
+          }
+        )
+
+        implicit val runtime: IORuntime =
+          IORuntime.builder().setCompute(pool, shutdown).addPoller(poller, () => ()).build()
+
+        val (scheduler, schedShut) =
+          IORuntime.createDefaultScheduler(threadPrefix = "complex-timer-test")
+
+        // just create a bit of chaos with timers and async completion
+        val sleeps = 0.until(10).map(i => IO.sleep((i * 10).millis)).toList
+
+        val externalSleeps = 0.until(10).toList map { i =>
+          IO.async_[Unit] { cb =>
+            val _ = scheduler.sleep((i * 10 + 5).millis, () => cb(Right(())))
+            ()
+          }
+        }
+
+        val latch = IO.deferred[Unit].flatMap(d => d.complete(()).start *> d.get)
+        val latches = 0.until(10).map(_ => latch).toList
+
+        val test = (sleeps ::: externalSleeps ::: latches).parSequence.parReplicateA_(100)
+
+        try {
+          test.unsafeRunTimed(20.seconds) must beSome
+        } finally {
+          runtime.shutdown()
+          schedShut()
+        }
       }
 
       if (javaMajorVersion >= 21)

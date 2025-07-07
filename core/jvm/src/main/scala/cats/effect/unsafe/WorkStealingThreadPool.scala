@@ -47,6 +47,7 @@ import java.util.concurrent.atomic.{
   AtomicReference,
   AtomicReferenceArray
 }
+import java.util.concurrent.locks.LockSupport
 
 import WorkStealingThreadPool._
 
@@ -93,7 +94,8 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
     new AtomicReferenceArray(threadCount)
   private[unsafe] val localQueues: Array[LocalQueue] = new Array(threadCount)
   private[unsafe] val sleepers: Array[TimerHeap] = new Array(threadCount)
-  private[unsafe] val parkedSignals: Array[AtomicBoolean] = new Array(threadCount)
+  private[unsafe] val parkedSignals: Array[AtomicReference[ParkedSignal]] = new Array(
+    threadCount)
   private[unsafe] val fiberBags: Array[WeakBag[Runnable]] = new Array(threadCount)
   private[unsafe] val pollers: Array[P] =
     new Array[AnyRef](threadCount).asInstanceOf[Array[P]]
@@ -158,7 +160,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
       localQueues(i) = queue
       val sleepersHeap = new TimerHeap()
       sleepers(i) = sleepersHeap
-      val parkedSignal = new AtomicBoolean(false)
+      val parkedSignal = new AtomicReference[ParkedSignal](ParkedSignal.Unparked)
       parkedSignals(i) = parkedSignal
       val index = i
       val fiberBag = new WeakBag[Runnable]()
@@ -248,7 +250,7 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
 
       if (isStackTracing) {
         destWorker.active = fiber
-        parkedSignals(dest).lazySet(false)
+        parkedSignals(dest).lazySet(ParkedSignal.Unparked)
       }
 
       fiber
@@ -313,14 +315,14 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
       val index = (from + i) % threadCount
 
       val signal = parkedSignals(index)
-      if (signal.getAndSet(false)) {
-        // Update the state so that a thread can be unparked.
-        // Here we are updating the 16 most significant bits, which hold the
-        // number of active threads, as well as incrementing the number of
-        // searching worker threads (unparked worker threads are implicitly
-        // allowed to search for work in the local queues of other worker
-        // threads).
-        state.getAndAdd(DeltaSearching)
+      val st = signal.get()
+
+      val polling = st eq ParkedSignal.ParkedPolling
+      val simple = st eq ParkedSignal.ParkedSimple
+
+      if ((polling || simple) && signal.compareAndSet(st, ParkedSignal.Interrupting)) {
+        doneSleeping()
+
         // Fetch the latest references to the worker threads before doing the
         // actual unparking. There is no danger of a race condition where the
         // parked signal has been successfully marked as unparked but the
@@ -329,7 +331,14 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
         // point it is already unparked and entering this code region is thus
         // impossible.
         val worker = workerThreads.get(index)
-        system.interrupt(worker, pollers(index))
+
+        if (polling) {
+          system.interrupt(worker, pollers(index))
+        } else {
+          LockSupport.unpark(worker)
+        }
+        signal.set(ParkedSignal.Unparked)
+
         return true
       }
 
@@ -453,6 +462,12 @@ private[effect] final class WorkStealingThreadPool[P <: AnyRef](
   }
 
   private[unsafe] def doneSleeping(): Unit = {
+    // Update the state so that a thread can be unparked.
+    // Here we are updating the 16 most significant bits, which hold the
+    // number of active threads, as well as incrementing the number of
+    // searching worker threads (unparked worker threads are implicitly
+    // allowed to search for work in the local queues of other worker
+    // threads).
     state.getAndAdd(DeltaSearching)
     ()
   }
