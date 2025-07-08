@@ -30,7 +30,7 @@ object Kqueue {
         _.collectFirst {
           case poller: Kqueue =>
             poller
-        }.liftTo[IO](new RuntimeException("No Kqueue installed in this IORuntime"))
+        }.liftTo[IO](new RuntimeException("No KqueueSystem installed in this IORuntime"))
       }
       .to
 
