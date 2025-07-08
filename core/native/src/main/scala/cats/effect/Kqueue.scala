@@ -24,12 +24,14 @@ trait Kqueue {
 
 object Kqueue {
 
-  def find: IO[Option[Kqueue]] =
-    IO.pollers.map(_.collectFirst { case p: Kqueue => p })
-
-  def get =
-    find.flatMap(
-      _.liftTo[IO](new RuntimeException("No Kqueue installed in this IORuntime"))
-    )
+  def get[F[_]: LiftIO]: F[Kqueue] =
+    IO.pollers
+      .flatMap {
+        _.collectFirst {
+          case poller: Kqueue =>
+            poller
+        }.liftTo[IO](new RuntimeException("No Kqueue installed in this IORuntime"))
+      }
+      .to
 
 }
