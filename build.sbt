@@ -730,6 +730,9 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvation"),
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvation$"),
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvationMBean"),
+      // changes to the `cats.effect.unsafe` package private code, see #4406
+      ProblemFilters.exclude[DirectMissingMethodProblem](
+        "cats.effect.unsafe.WorkerThread.getSuspendedFiberCount"),
       // protected constructor modified when fixing #4359
       ProblemFilters.exclude[DirectMissingMethodProblem](
         "cats.effect.unsafe.IORuntimeBuilder.<init>$default$10")
