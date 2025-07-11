@@ -45,8 +45,8 @@ object KqueueSystem extends PollingSystem {
 
   def close(): Unit = ()
 
-  def makeApi(ctx: PollingContext[Poller]): FileDescriptorPoller =
-    new KqueueImpl(ctx)
+  def makeApi(ctx: PollingContext[Poller]): Kqueue =
+    new Kqueue(ctx)
 
   def makePoller(): Poller = {
     val fd = kqueue()
@@ -71,10 +71,9 @@ object KqueueSystem extends PollingSystem {
 
   def metrics(poller: Poller): PollerMetrics = PollerMetrics.noop
 
-  private final class KqueueImpl private[KqueueSystem] (
+  final class Kqueue private[KqueueSystem] (
       ctx: PollingContext[Poller]
-  ) extends Kqueue
-      with FileDescriptorPoller {
+  ) extends FileDescriptorPoller {
     def registerFileDescriptor(
         fd: Int,
         reads: Boolean,
@@ -86,7 +85,7 @@ object KqueueSystem extends PollingSystem {
         }
       }
 
-    override def awaitEvent(
+    def awaitEvent(
         ident: Int,
         filter: Short,
         flags: Short,
