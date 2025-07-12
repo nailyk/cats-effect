@@ -162,8 +162,9 @@ object Hotswap2 {
       extends AnyVal {
 
     /**
-     * When the [[Resource]] contained by a [[Hotswap2]] is wrapped in an [[Option]] it is not
-     * desirable to prevent calls to [[Hotswap2.swap]] when the [[Resource]] contains [[None]].
+     * When the [[cats.effect.kernel.Resource]] contained by a [[Hotswap2]] is wrapped in an
+     * [[scala.Option]] it is not desirable to prevent calls to [[Hotswap2.swap]] when the
+     * [[cats.effect.kernel.Resource Resource]] contains [[scala.None]].
      *
      * [[getOpt]] preserves this behavior from [[Hotswap.get]]
      */
