@@ -25,6 +25,7 @@ import cats.effect.unsafe.IORuntimeConfig
 
 import scala.concurrent.duration._
 
+@deprecated("Hotswap deprecated", "3.6.3")
 class HotswapSuite extends BaseSuite { outer =>
 
   def logged(log: Ref[IO, List[String]], name: String): Resource[IO, Unit] =
