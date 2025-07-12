@@ -20,12 +20,11 @@ package std
 
 import cats.effect.Resource
 import cats.effect.kernel.Ref
+import cats.effect.testkit.TestControl
 import cats.effect.unsafe.IORuntimeConfig
 import cats.syntax.all._
 
 import scala.concurrent.duration._
-
-import cats.effect.testkit.TestControl
 
 class Hotswap2Suite extends BaseSuite {
   outer =>

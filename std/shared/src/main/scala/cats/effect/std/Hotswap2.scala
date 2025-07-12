@@ -16,9 +16,9 @@
 
 package cats.effect.std
 
-import cats.effect.kernel.Resource.ExitCase.Succeeded
 import cats.effect.kernel.{Concurrent, MonadCancel, Ref, Resource}
-import cats.syntax.all.*
+import cats.effect.kernel.Resource.ExitCase.Succeeded
+import cats.syntax.all._
 
 /**
  * A concurrent data structure that exposes a linear sequence of `R` resources as a single
