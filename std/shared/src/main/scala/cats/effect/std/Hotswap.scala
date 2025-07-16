@@ -50,7 +50,7 @@ import cats.syntax.all._
  *
  * Ported from https://github.com/typelevel/fs2.
  */
-@deprecated("Use Hotswap2", "3.6.3")
+@deprecated("Use Hotswap2", "3.7.0")
 sealed trait Hotswap[F[_], R] {
 
   /**
@@ -94,7 +94,7 @@ object Hotswap {
    * Creates a new [[Hotswap]] initialized with the specified resource. The [[Hotswap]] instance
    * and the initial resource are returned.
    */
-  @deprecated("Use Hotswap2.apply", "3.6.3")
+  @deprecated("Use Hotswap2.apply", "3.7.0")
   def apply[F[_]: Concurrent, R](initial: Resource[F, R]): Resource[F, (Hotswap[F, R], R)] =
     create[F, R].evalMap(hotswap => hotswap.swap(initial).tupleLeft(hotswap))
 
@@ -102,7 +102,7 @@ object Hotswap {
    * Creates a new [[Hotswap]], which represents a [[cats.effect.kernel.Resource]] that can be
    * swapped during the lifetime of this [[Hotswap]].
    */
-  @deprecated("Use Hotswap2.empty", "3.6.3")
+  @deprecated("Use Hotswap2.empty", "3.7.0")
   def create[F[_], R](implicit F: Concurrent[F]): Resource[F, Hotswap[F, R]] =
     Hotswap2.empty[F, R].map { nes =>
       new Hotswap[F, R] {
