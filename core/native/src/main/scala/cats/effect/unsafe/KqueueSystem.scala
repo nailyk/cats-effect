@@ -41,7 +41,7 @@ object KqueueSystem extends PollingSystem {
 
   private final val MaxEvents = 64
 
-  type Api = FileDescriptorPoller
+  type Api = Kqueue
 
   def close(): Unit = ()
 
