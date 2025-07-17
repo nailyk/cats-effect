@@ -16,12 +16,12 @@
 
 package cats.effect.testkit
 
-import cats.Show
+import cats.{Applicative, ApplicativeThrow, Functor, Semigroupal, Show}
 import cats.data.{Chain, NonEmptyChain}
 import cats.effect.Concurrent
 import cats.effect.kernel.{Deferred, Ref, Resource}
 import cats.effect.std.{Console, Semaphore}
-import cats.effect.testkit.TestConsole.TestStdIn
+import cats.effect.testkit.TestConsole.{ConsoleClosedException, Op, TestStdIn}
 import cats.syntax.all._
 
 import scala.annotation.tailrec
@@ -33,28 +33,20 @@ import java.nio.charset.Charset
 /**
  * Implement a test version of [[cats.effect.std.Console]]
  */
-final class TestConsole[F[_]: Concurrent](
+final class TestConsole[F[_]: ApplicativeThrow](
     stdIn: TestStdIn[F],
-    stdOutRef: Ref[F, Chain[String]],
-    stdErrRef: Ref[F, Chain[String]],
     inspector: TestConsole.Inspector[F]
 ) extends Console[F] {
   import inspector.log
 
-  override def readLineWithCharset(charset: Charset): F[String] =
-    stdIn.readLine(charset)
+  override def readLineWithCharset(charset: Charset): F[String] = stdIn.readLine(charset)
+  override def print[A](a: A)(implicit S: Show[A]): F[Unit] = log(Op.Print(a.show))
+  override def println[A](a: A)(implicit S: Show[A]): F[Unit] = log(Op.Println(a.show))
+  override def error[A](a: A)(implicit S: Show[A]): F[Unit] = log(Op.Error(a.show))
+  override def errorln[A](a: A)(implicit S: Show[A]): F[Unit] = log(Op.Errorln(a.show))
 
-  override def print[A](a: A)(implicit S: Show[A]): F[Unit] =
-    log(show"print($a)") *> stdOutRef.update(_.append(a.show))
-
-  override def println[A](a: A)(implicit S: Show[A]): F[Unit] =
-    log(show"println($a)") *> stdOutRef.update(_.append(a.show).append("\n"))
-
-  override def error[A](a: A)(implicit S: Show[A]): F[Unit] =
-    log(show"error($a)") *> stdErrRef.update(_.append(a.show))
-
-  override def errorln[A](a: A)(implicit S: Show[A]): F[Unit] =
-    log(show"errorln($a)") *> stdErrRef.update(_.append(a.show).append("\n"))
+  private[testkit] def close: F[Unit] =
+    stdIn.close.recover { case ConsoleClosedException() => () } *> inspector.log(Op.Closed)
 }
 object TestConsole {
 
@@ -65,18 +57,14 @@ object TestConsole {
    * to [[TestConsole.readLineWithCharset]]
    */
   def resource[F[_]: Concurrent]: Resource[F, (TestConsole[F], TestStdIn[F], Inspector[F])] =
-    Resource.make[F, (TestConsole[F], TestStdIn[F], Inspector[F])](unsafe[F]) {
-      case (_, stdIn, _) => stdIn.close.recover { case ConsoleClosedException() => () }
-    }
+    Resource.make[F, (TestConsole[F], TestStdIn[F], Inspector[F])](unsafe[F])(_._1.close)
 
   private def unsafe[F[_]: Concurrent]: F[(TestConsole[F], TestStdIn[F], Inspector[F])] =
     for {
       stdInStateRef <- Ref.of[F, TestStdIn.State[F]](TestStdIn.State.waiting[F])
-      stdOutRef <- Ref.empty[F, Chain[String]]
-      stdErrRef <- Ref.empty[F, Chain[String]]
-      inspector <- Inspector.default(stdInStateRef, stdOutRef, stdErrRef)
-      stdIn <- TestStdIn.default(stdInStateRef, inspector.log)
-    } yield (new TestConsole[F](stdIn, stdOutRef, stdErrRef, inspector), stdIn, inspector)
+      inspector <- Inspector.default(stdInStateRef)
+      stdIn <- TestStdIn.default(stdInStateRef, inspector)
+    } yield (new TestConsole[F](stdIn, inspector), stdIn, inspector)
 
   private[testkit] final case class ConsoleClosedException()
       extends IllegalStateException("Console is closed")
@@ -91,13 +79,13 @@ object TestConsole {
      * @return
      *   The current contents of the associated [[TestConsole]]'s stdOut
      */
-    def stdOutContents: F[String]
+    def stdOut: F[String]
 
     /**
      * @return
      *   The current contents of the associated [[TestConsole]]'s stdErr
      */
-    def stdErrContents: F[String]
+    def stdErr: F[String]
 
     /**
      * @return
@@ -107,32 +95,152 @@ object TestConsole {
      */
     def description: F[String]
 
-    private[testkit] def log(msg: String): F[Unit]
+    /**
+     * Provides access to lower level inspections.
+     *
+     * This is generally discouraged as it tends to make tests more brittle.
+     */
+    def lowLevel: Inspector.LowLevel[F]
+
+    private[testkit] def log(operation: Op): F[Unit]
+    private[testkit] def freeze: F[Inspector[F]]
   }
   object Inspector {
-    def default[F[_]: Concurrent](
-        stdInStateRef: Ref[F, TestStdIn.State[F]],
-        stdOutRef: Ref[F, Chain[String]],
-        stdErrRef: Ref[F, Chain[String]]): F[Inspector[F]] =
-      Ref.empty[F, Chain[String]].map { logsRef =>
-        new Inspector[F] {
-          override def stdOutContents: F[String] = stdOutRef.get.map(_.mkString_(""))
+    trait LowLevel[F[_]] extends Inspector[F] {
 
-          override def stdErrContents: F[String] = stdErrRef.get.map(_.mkString_(""))
+      /**
+       * @return
+       *   The list of user operations on stdOut
+       */
+      def stdOutOperations: F[List[Op.StdOutOp]]
 
-          override def description: F[String] =
-            (logsRef.get.map(_.mkString_("\n")), stdInStateRef.get.map(_.describe)).mapN {
-              (logStr, stateStr) =>
-                s"""|=== Activity Log ===
-                    |$logStr
-                    |=== Current State ===
-                    |$stateStr""".stripMargin
-            }
+      /**
+       * @return
+       *   The list of user operations on stdErr
+       */
+      def stdErrOperations: F[List[Op.StdErrOp]]
 
-          override private[testkit] def log(msg: String): F[Unit] =
-            logsRef.update(_.append(msg))
+      /**
+       * @return
+       *   The list of user operations on stdIn
+       */
+      def stdInOperations: F[List[Op.StdInOp]]
+
+      /**
+       * @return
+       *   The list of all operations
+       */
+      def operationsLog: F[List[Op]]
+    }
+
+    def default[F[_]: Concurrent](stdInStateRef: Ref[F, TestStdIn.State[F]]): F[Inspector[F]] =
+      Ref.empty[F, Chain[Op]].map { operationRef =>
+        new Default[F](operationRef.get, stdInStateRef.get) {
+          override private[testkit] def log(operation: Op): F[Unit] =
+            operationRef.update(_.append(operation))
+
+          override private[testkit] def freeze: F[Inspector[F]] =
+            (stdInStateRef.get, operationRef.get).mapN(frozen(_, _))
         }
       }
+
+    def frozen[F[_]: Applicative](
+        finalState: TestStdIn.State[F],
+        logs: Chain[Op]): Inspector[F] =
+      new Default[F](logs.pure[F], finalState.pure[F]) {
+        override private[testkit] def log(operation: Op): F[Unit] = Applicative[F].unit
+
+        override private[testkit] def freeze: F[Inspector[F]] = this.pure[F].widen
+      }
+
+    private abstract class Default[F[_]: Functor: Semigroupal](
+        operations: F[Chain[Op]],
+        state: F[TestStdIn.State[F]])
+        extends Inspector[F]
+        with LowLevel[F] {
+      override def stdOut: F[String] = operations.map { opLog =>
+        opLog
+          .flatMap {
+            case Op.Print(value) => Chain.one(value)
+            case Op.Println(value) => Chain(value, "\n")
+            case _ => Chain.empty
+          }
+          .mkString_("")
+      }
+
+      override def stdErr: F[String] = operations.map { opLog =>
+        opLog
+          .flatMap {
+            case Op.Error(value) => Chain.one(value)
+            case Op.Errorln(value) => Chain(value, "\n")
+            case _ => Chain.empty
+          }
+          .mkString_("")
+      }
+
+      override def description: F[String] =
+        (operations.map(_.mkString_("\n")), state.map(_.describe)).mapN { (logStr, stateStr) =>
+          s"""|=== Activity Log ===
+              |$logStr
+              |=== Current State ===
+              |$stateStr""".stripMargin
+        }
+
+      override def lowLevel: LowLevel[F] = this
+
+      override def stdOutOperations: F[List[Op.StdOutOp]] = operations.map(_.flatMap {
+        case op: Op.StdOutOp => Chain.one(op)
+        case _ => Chain.empty
+      }.toList)
+
+      override def stdErrOperations: F[List[Op.StdErrOp]] = operations.map(_.flatMap {
+        case op: Op.StdErrOp => Chain.one(op)
+        case _ => Chain.empty
+      }.toList)
+
+      override def stdInOperations: F[List[Op.StdInOp]] = operations.map(_.flatMap {
+        case op: Op.StdInOp => Chain.one(op)
+        case _ => Chain.empty
+      }.toList)
+
+      override def operationsLog: F[List[Op]] = operations.map(_.toList)
+    }
+  }
+
+  sealed trait Op
+  object Op {
+    sealed trait StdOutOp
+    sealed trait StdErrOp
+    sealed trait StdInOp
+
+    final case class Error(value: String) extends Op with StdErrOp
+    final case class Errorln(value: String) extends Op with StdErrOp
+    final case class Print(value: String) extends Op with StdOutOp
+    final case class Println(value: String) extends Op with StdOutOp
+    final case class Write(value: String) extends Op with StdInOp
+    final case class Writeln(value: String) extends Op with StdInOp
+    final case class ReadAttempted(id: Int) extends Op with StdInOp
+    final case class ReadSuccess(id: Int, line: String) extends Op with StdInOp
+    final case class ReadFailure(id: Int, throwable: Throwable) extends Op with StdInOp
+    final case class DiscardStdInContents(lines: Long, bytes: Long) extends Op
+    final case class NotifyPendingReads(requests: Long) extends Op
+    case object Closed extends Op
+
+    implicit val show: Show[Op] = Show.show {
+      case Error(value) => s"error($value)"
+      case Errorln(value) => s"errorln($value)"
+      case Print(value) => s"print($value)"
+      case Println(value) => s"println($value)"
+      case Write(value) => s"Writing to stdIn: $value"
+      case Writeln(value) => s"Writing line to stdIn: $value"
+      case ReadAttempted(id) => s"Reading stdIn [id: $id]"
+      case ReadSuccess(id, line) => s"Read from stdIn [id: $id]: $line"
+      case ReadFailure(id, throwable) => s"Read from stdIn failed [id: $id]: $throwable"
+      case DiscardStdInContents(lines, bytes) =>
+        s"Discarded $lines lines and $bytes bytes from stdIn"
+      case NotifyPendingReads(requests) => s"Notified $requests pending read requests"
+      case Closed => "Closed"
+    }
   }
 
   trait TestStdIn[F[_]] {
@@ -186,10 +294,12 @@ object TestConsole {
   }
 
   object TestStdIn {
-    def default[F[_]](stateRef: Ref[F, TestStdIn.State[F]], log: String => F[Unit])(
+    def default[F[_]](stateRef: Ref[F, TestStdIn.State[F]], inspector: Inspector[F])(
         implicit F: Concurrent[F]): F[TestStdIn[F]] =
       (Semaphore[F](1L), Ref.of[F, Int](0)).mapN { (semaphore, readIdRef) =>
         new TestStdIn[F] {
+          import inspector.log
+
           private val defaultCharset = Charset.defaultCharset()
 
           private def streamClosed = new EOFException("End Of File")
@@ -198,14 +308,13 @@ object TestConsole {
             write(value, defaultCharset)
 
           override def write[A](value: A, charset: Charset)(implicit S: Show[A]): F[Unit] =
-            log(show"Writing to stdIn: $value") *> writeImpl(State.Chunk(value.show, charset))
+            log(Op.Write(value.show)) *> writeImpl(State.Chunk(value.show, charset))
 
           override def writeln[A](value: A)(implicit S: Show[A]): F[Unit] =
             writeln(value, defaultCharset)
 
           override def writeln[A](value: A, charset: Charset)(implicit S: Show[A]): F[Unit] =
-            log(show"Writing line to stdIn: $value") *> writeImpl(
-              State.Chunk(show"$value\n", charset))
+            log(Op.Writeln(value.show)) *> writeImpl(State.Chunk(show"$value\n", charset))
 
           private def writeImpl(chunk: State.Chunk): F[Unit] =
             if (chunk.isEmpty) F.unit
@@ -246,7 +355,7 @@ object TestConsole {
               semaphore
                 .permit
                 .use { _ =>
-                  log(s"Reading stdIn [id: $readId]") *>
+                  log(Op.ReadAttempted(readId)) *>
                     stateRef.get.flatMap {
                       case State.Closed() =>
                         F.raiseError[Deferred[F, Either[Throwable, Array[Byte]]]](streamClosed)
@@ -265,31 +374,26 @@ object TestConsole {
                 .flatMap(_.traverse(bytes =>
                   Concurrent[F].catchNonFatal(new String(bytes, charset))))
                 .flatTap {
-                  case Left(ex) => log(s"Read from stdIn failed [id: $readId]: $ex")
-                  case Right(line) => log(s"Read from stdIn [id: $readId]: $line")
+                  case Left(ex) => log(Op.ReadFailure(readId, ex))
+                  case Right(line) => log(Op.ReadSuccess(readId, line))
                 }
                 .rethrow
             }
 
           override private[testkit] def close: F[Unit] =
             semaphore.permit.use { _ =>
-              stateRef
-                .get
-                .flatTap(_ => log("Closing stdIn"))
-                .flatMap {
-                  case State.Closed() => F.unit
-                  case State.Ready(lines, partial) =>
-                    log(s"Discarding ${lines.length} lines and ${partial.chunks.length} bytes from stdIn") *>
-                      stateRef.set(State.closed)
-                  case State.Waiting(requests, buffer) =>
-                    log(s"Discarding ${buffer.chunks.length} bytes from stdIn")
-                      .unlessA(buffer.chunks.isEmpty) *>
-                      log(s"Notifying ${requests.length} pending read requests")
-                        .unlessA(requests.isEmpty) *>
-                      stateRef.set(State.closed) *>
-                      requests.traverse_(_.complete(streamClosed.asLeft))
-                }
-                .flatTap(_ => log("Closed stdIn"))
+              stateRef.get.flatMap {
+                case State.Closed() => F.unit
+                case State.Ready(lines, partial) =>
+                  log(Op.DiscardStdInContents(lines.length, partial.length))
+                    .unlessA(partial.isEmpty) *>
+                    stateRef.set(State.closed)
+                case State.Waiting(requests, buffer) =>
+                  log(Op.DiscardStdInContents(0, buffer.length)).unlessA(buffer.isEmpty) *>
+                    log(Op.NotifyPendingReads(requests.length)).unlessA(requests.isEmpty) *>
+                    requests.traverse_(_.complete(streamClosed.asLeft).attempt) *>
+                    stateRef.set(State.closed)
+              }
             }
         }
       }
@@ -357,6 +461,8 @@ object TestConsole {
        */
       final case class PartialLine(chunks: Chain[Chunk]) {
         def isEmpty: Boolean = chunks.forall(_.isEmpty)
+
+        def length: Long = chunks.map(_.bytes.length.toLong).combineAll
 
         def render: String = chunks.mkString_("")
 

@@ -34,7 +34,7 @@ class TestConsoleSpec extends BaseSuite {
         for {
           _ <- console.println(120)
           _ <- console.print("foo")
-          stdOut <- inspector.stdOutContents
+          stdOut <- inspector.stdOut
         } yield assertEquals(stdOut, "120\nfoo")
     }
   }
@@ -45,7 +45,7 @@ class TestConsoleSpec extends BaseSuite {
         for {
           _ <- console.errorln(120)
           _ <- console.error("foo")
-          stdOut <- inspector.stdErrContents
+          stdOut <- inspector.stdErr
         } yield assertEquals(stdOut, "120\nfoo")
     }
   }
@@ -285,10 +285,9 @@ class TestConsoleSpec extends BaseSuite {
                           |Reading stdIn [id: 1]
                           |Writing line to stdIn: foo
                           |Read from stdIn [id: 0]: foo
-                          |Closing stdIn
-                          |Notifying 1 pending read requests
+                          |Notified 1 pending read requests
                           |Read from stdIn failed [id: 1]: java.io.EOFException: End Of File
-                          |Closed stdIn
+                          |Closed
                           |=== Current State ===
                           |Closed""".stripMargin) IO.unit
             else if (log == """|=== Activity Log ===
@@ -296,9 +295,8 @@ class TestConsoleSpec extends BaseSuite {
                                |Reading stdIn [id: 1]
                                |Writing line to stdIn: foo
                                |Read from stdIn [id: 0]: foo
-                               |Closing stdIn
-                               |Notifying 1 pending read requests
-                               |Closed stdIn
+                               |Notified 1 pending read requests
+                               |Closed
                                |Read from stdIn failed [id: 1]: java.io.EOFException: End Of File
                                |=== Current State ===
                                |Closed""".stripMargin) IO.unit
@@ -338,21 +336,22 @@ class TestConsoleSpec extends BaseSuite {
     )
   }
 
-  test("append the incoming chunk when it does not end with a newline") {
+  test(
+    "PartialLine.append should append the incoming chunk when it does not end with a newline") {
     assertEquals(
       PartialLine.one(chunk("foo")).append(chunk("bar")),
       (Chain.empty, PartialLine(Chain(chunk("foo"), chunk("bar"))))
     )
   }
 
-  test("emit when the incoming chunk ends with a newline") {
+  test("PartialLine.append should emit when the incoming chunk ends with a newline") {
     assertEquals(
       PartialLine.one(chunk("foo")).append(chunk("bar\n")),
       (Chain.one(Line(Chain(chunk("foo"), chunk("bar")))), PartialLine.empty)
     )
   }
 
-  test("emit multiple if the incoming chunk has multiple newlines") {
+  test("PartialLine.append should emit multiple if the incoming chunk has multiple newlines") {
     assertEquals(
       PartialLine.one(chunk("foo")).append(chunk("bar\nbaz\nqux")),
       (
