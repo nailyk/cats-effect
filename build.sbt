@@ -364,7 +364,7 @@ Global / tlCommandAliases ++= Map(
 lazy val nativeTestSettings = Seq(
   nativeConfig ~= { c =>
     c.withSourceLevelDebuggingConfig(_.enableAll.generateFunctionSourcePositions(false)) // `true` causes segfaults(?)
-      .withOptimize(true)
+      .withOptimize(true) // `false` doesn't work due to https://github.com/scala-native/scala-native/issues/4366
       .withMode(Mode.debug) // compile using LLVM without optimizations
   },
   envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "10g") else Map.empty[String, String] },
