@@ -58,4 +58,5 @@ class TracingSuite extends BaseSuite with TestInstances {
       case _ => fail("expected IO.Delay")
     }
   }
+
 }
