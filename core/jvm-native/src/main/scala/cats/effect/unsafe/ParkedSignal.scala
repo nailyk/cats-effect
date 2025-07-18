@@ -14,8 +14,15 @@
  * limitations under the License.
  */
 
-package cats.effect
+package cats.effect.unsafe
 
-private[effect] abstract class IOCompanionPlatform extends IOCompanionMultithreadedPlatform {
-  this: IO.type =>
+private sealed abstract class ParkedSignal extends Product with Serializable
+
+private object ParkedSignal {
+  case object Unparked extends ParkedSignal
+
+  case object ParkedPolling extends ParkedSignal
+  case object ParkedSimple extends ParkedSignal
+
+  case object Interrupting extends ParkedSignal
 }
