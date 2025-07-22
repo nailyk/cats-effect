@@ -16,21 +16,21 @@
 
 package cats.effect
 
-/**
- * Represents a snapshot of all live fibers in the runtime.
- *
- * @note
- *   the snapshot introduces a risk of memory leaks because it retains hard references to the
- *   underlying Fiber instances. As a result, these fibers cannot be garbage collected while the
- *   snapshot (or anything that retains it) is still in scope.
- */
-trait FiberSnapshot extends FiberSnapshotPlatform {
-
-  /**
-   * The list of all external (non-worker-local) fibers.
-   */
-  def external: List[FiberInfo]
+private[effect] trait FiberSnapshotPlatform { self: FiberSnapshot =>
 
 }
 
-object FiberSnapshot extends FiberSnapshotCompanionPlatform {}
+private[effect] trait FiberSnapshotCompanionPlatform { self: FiberSnapshot.type =>
+
+  private val Empty: FiberSnapshot = FiberSnapshotImpl(Nil)
+
+  def apply(external: List[FiberInfo]): FiberSnapshot =
+    FiberSnapshotImpl(external)
+
+  def empty: FiberSnapshot = Empty
+
+  private case class FiberSnapshotImpl(
+      external: List[FiberInfo]
+  ) extends FiberSnapshot
+
+}

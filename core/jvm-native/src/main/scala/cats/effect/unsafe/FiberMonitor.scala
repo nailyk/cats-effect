@@ -110,9 +110,9 @@ private[effect] sealed class FiberMonitor(
     val snapshot = liveFiberSnapshot()
 
     if (snapshot.workers.isEmpty) {
-      printFibers(snapshot.global)(print)
+      printFibers(snapshot.external)(print)
     } else {
-      val (enqueued, foreign, waiting) = snapshot.global.foldLeft((0, 0, 0)) {
+      val (enqueued, foreign, waiting) = snapshot.external.foldLeft((0, 0, 0)) {
         case ((enqueued, foreign, waiting), fiber) =>
           fiber.state match {
             case FiberInfo.State.Yielding => (enqueued + 1, foreign, waiting)
@@ -133,7 +133,7 @@ private[effect] sealed class FiberMonitor(
           s"${worker.thread} (#${worker.index}): $yielding enqueued"
       }
 
-      printFibers(snapshot.global)(print)
+      printFibers(snapshot.external)(print)
 
       print(doubleNewline)
       print(workersStatuses.mkString(newline))

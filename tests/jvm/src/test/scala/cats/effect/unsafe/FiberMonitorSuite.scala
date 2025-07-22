@@ -38,7 +38,7 @@ class FiberMonitorSuite extends BaseSuite with TestInstances {
       // awaiting fiber
       _ <- IO(
         assertEquals(
-          snapshot.global.map(f => (f.fiber, f.state)),
+          snapshot.external.map(f => (f.fiber, f.state)),
           List((fiber, FiberInfo.State.Waiting))
         )
       )
@@ -61,7 +61,7 @@ class FiberMonitorSuite extends BaseSuite with TestInstances {
       _ <- IO(assert(fiber.toString.matches(completedPattern), fiber.toString))
 
       // must be no awaiting fibers
-      _ <- IO(assertEquals(runtime.liveFiberSnapshot().global.size, 0))
+      _ <- IO(assertEquals(runtime.liveFiberSnapshot().external.size, 0))
 
       // root fiber must remain
       _ <- IO(

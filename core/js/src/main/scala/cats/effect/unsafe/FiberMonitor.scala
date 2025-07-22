@@ -100,7 +100,7 @@ private final class FiberMonitorImpl(
   def printLiveFiberSnapshot(print: String => Unit): Unit = {
     val snapshot = liveFiberSnapshot()
 
-    val (enqueued, waiting) = snapshot.global.foldLeft((0, 0)) {
+    val (enqueued, waiting) = snapshot.external.foldLeft((0, 0)) {
       case ((enqueued, waiting), fiber) =>
         fiber.state match {
           case FiberInfo.State.Yielding => (enqueued + 1, waiting)
@@ -109,7 +109,7 @@ private final class FiberMonitorImpl(
         }
     }
 
-    printFibers(snapshot.global)(print)
+    printFibers(snapshot.external)(print)
 
     val globalStatus =
       s"Global: enqueued $enqueued, waiting $waiting"
@@ -137,7 +137,7 @@ private final class FiberMonitorImpl(
           toFiberInfo(foreign, FiberInfo.State.Yielding) ++
           toFiberInfo(suspended, FiberInfo.State.Waiting)
 
-      FiberSnapshot(fibers, Map.empty)
+      FiberSnapshot(fibers)
     }
   }
 }
