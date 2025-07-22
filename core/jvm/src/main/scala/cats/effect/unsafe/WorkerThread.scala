@@ -651,7 +651,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
             // we won the race to awaken ourselves, so we need to let the pool know
             pool.doneSleeping()
           } else {
-            // lost CAS race, possibly concurrent `Interrupting``,
+            // lost CAS race, possibly concurrent `Interrupting`,
             // we'll need to re-read `parked`:
             notifyDoneSleeping()
           }
