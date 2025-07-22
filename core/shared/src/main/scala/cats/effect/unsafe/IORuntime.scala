@@ -66,10 +66,20 @@ final class IORuntime private[unsafe] (
    * current state, worker assignments, and execution traces. It can be used for debugging,
    * diagnostics, or visualizations.
    *
+   * This method is intended primarily for external tools, such as debuggers, monitoring agents,
+   * or test frameworks. As such, it is '''not''' wrapped in [[cats.effect.IO]] or
+   * [[cats.effect.SyncIO]] since this API is expected to be used outside the effect context.
+   * Requiring an `IO` here would make integration with external tools more cumbersome or even
+   * impossible.
+   *
    * @note
    *   the snapshot introduces a risk of memory leaks because it retains hard references to the
    *   underlying Fiber instances. As a result, these fibers cannot be garbage collected while
    *   the snapshot (or anything that retains it) is still in scope.
+   *
+   * @note
+   *   this method is part of the `unsafe` package and should be used with care. Its primary
+   *   purpose is for runtime introspection, not for application logic.
    *
    * @example
    *   Print all live fibers grouped by worker:
@@ -80,13 +90,14 @@ final class IORuntime private[unsafe] (
    *       snapshot <- IO.delay(runtime.liveFiberSnapshot())
    *
    *       // Print fibers assigned to specific worker threads
+   *       // `workers` API is available only on JVM and Scala Native platforms
    *       _ <- snapshot.workers.toList.traverse_ { case (worker, fibers) =>
    *         IO.println("Worker " + worker.thread + " #" + worker.index) >>
    *           fibers.traverse_(fiber => IO.println(fiber.pretty))
    *       }
    *
    *       // Print global fibers (not bound to specific workers, e.g., blocked or external)
-   *       _ <- snapshot.global.traverse_(fiber => IO.println(fiber.pretty))
+   *       _ <- snapshot.external.traverse_(fiber => IO.println(fiber.pretty))
    *     } yield ()
    *   }}}
    */

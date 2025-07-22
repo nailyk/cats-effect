@@ -175,7 +175,7 @@ private[effect] sealed class FiberMonitor(
    *       }
    *
    *       // Print global fibers (not bound to specific workers, e.g., blocked or external)
-   *       _ <- snapshot.global.traverse_(fiber => IO.println(fiber.pretty))
+   *       _ <- snapshot.external.traverse_(fiber => IO.println(fiber.pretty))
    *     } yield ()
    *   }}}
    *

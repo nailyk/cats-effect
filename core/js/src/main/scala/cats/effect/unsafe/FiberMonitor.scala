@@ -70,7 +70,7 @@ private[effect] sealed abstract class FiberMonitor extends FiberMonitorShared {
    *   val printFiberDump: IO[Unit] =
    *     for {
    *       snapshot <- IO.delay(runtime.liveFiberSnapshot())
-   *       _ <- snapshot.global.traverse_(fiber => IO.println(fiber.pretty))
+   *       _ <- snapshot.external.traverse_(fiber => IO.println(fiber.pretty))
    *     } yield ()
    *   }}}
    *

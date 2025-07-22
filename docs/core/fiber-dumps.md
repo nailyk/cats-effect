@@ -119,12 +119,13 @@ object Main extends IOApp.Simple {
       snapshot <- IO.delay(runtime.liveFiberSnapshot())
       
       // print fibers assigned to specific worker threads
+      // `workers` API is available only on JVM and Scala Native platforms
       _ <- snapshot.workers.toList.traverse_ { case (worker, fibers) =>
         IO.println(s"Worker ${worker.thread} #${worker.index}") >> fibers.traverse_(fiber => IO.println(fiber.pretty))
       }
       
       // print global fibers (not bound to specific workers, e.g., blocked or external)
-      _ <- snapshot.global.traverse_(fiber => IO.println(fiber.pretty))
+      _ <- snapshot.external.traverse_(fiber => IO.println(fiber.pretty))
     } yield ()
 }
 ```
