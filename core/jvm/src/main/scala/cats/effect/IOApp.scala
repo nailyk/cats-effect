@@ -462,7 +462,9 @@ trait IOApp {
         .flatMap(_ => List("USR1", "INFO"))
 
       liveFiberSnapshotSignal foreach { name =>
-        Signal.handle(name, _ => runtime.fiberMonitor.liveFiberSnapshot(System.err.print(_)))
+        Signal.handle(
+          name,
+          _ => runtime.fiberMonitor.printLiveFiberSnapshot(System.err.print(_)))
       }
     }
 
