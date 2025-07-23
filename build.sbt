@@ -919,7 +919,12 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         ProblemFilters.exclude[DirectMissingMethodProblem](
           "cats.effect.unsafe.IORuntimeBuilder.extraPollers"),
         ProblemFilters.exclude[DirectMissingMethodProblem](
-          "cats.effect.unsafe.IORuntimeBuilder.extraPollers_=")
+          "cats.effect.unsafe.IORuntimeBuilder.extraPollers_="),
+        // internal API change
+        ProblemFilters.exclude[DirectMissingMethodProblem](
+          "cats.effect.unsafe.NoOpFiberMonitor.liveFiberSnapshot"),
+        ProblemFilters.exclude[DirectMissingMethodProblem](
+          "cats.effect.unsafe.FiberMonitorImpl.liveFiberSnapshot")
       )
     },
     mimaBinaryIssueFilters ++= {

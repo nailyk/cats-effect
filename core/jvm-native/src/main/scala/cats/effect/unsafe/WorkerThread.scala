@@ -636,6 +636,7 @@ private[effect] final class WorkerThread[P <: AnyRef](
         acc
       }
 
+    @tailrec
     def notifyDoneSleeping(): Unit = {
       val st = parked.get()
 
@@ -645,9 +646,15 @@ private[effect] final class WorkerThread[P <: AnyRef](
           // this happens when we wake ourselves at the same moment the pool decides to wake us
 
           while (parked.get() eq ParkedSignal.Interrupting) {}
-        } else if (parked.compareAndSet(st, ParkedSignal.Unparked)) {
-          // we won the race to awaken ourselves, so we need to let the pool know
-          pool.doneSleeping()
+        } else {
+          if (parked.compareAndSet(st, ParkedSignal.Unparked)) {
+            // we won the race to awaken ourselves, so we need to let the pool know
+            pool.doneSleeping()
+          } else {
+            // lost CAS race, possibly concurrent `Interrupting`,
+            // we'll need to re-read `parked`:
+            notifyDoneSleeping()
+          }
         }
       }
     }
