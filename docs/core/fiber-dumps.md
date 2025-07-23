@@ -102,6 +102,34 @@ fibers.foreach { fiber =>
 }
 ```
 
+## Obtaining a fiber dump programmatically
+
+> **Caution:** The snapshot introduces a risk of memory leaks because it retains hard references to the underlying Fiber instances. 
+> As a result, these fibers cannot be garbage collected while the snapshot (or anything that retains it) is still in scope. 
+
+You can collect 
+
+```scala mdoc:silent
+import cats.effect.{IO, IOApp}
+import cats.syntax.all._
+
+object Main extends IOApp.Simple {
+  val run =
+    for {
+      snapshot <- IO.delay(runtime.liveFiberSnapshot())
+      
+      // print fibers assigned to specific worker threads
+      // `workers` API is available only on JVM and Scala Native platforms
+      _ <- snapshot.workers.toList.traverse_ { case (worker, fibers) =>
+        IO.println(s"Worker ${worker.thread} #${worker.index}") >> fibers.traverse_(fiber => IO.println(fiber.pretty))
+      }
+      
+      // print global fibers (not bound to specific workers, e.g., blocked or external)
+      _ <- snapshot.external.traverse_(fiber => IO.println(fiber.pretty))
+    } yield ()
+}
+```
+
 ## Configuration
 
 Fiber dumps are enabled by default and controlled by the same [configuration as tracing](../core/io-runtime-config.md). Note that there is noticeable overhead for certain workloads, see [#2634](https://github.com/typelevel/cats-effect/issues/2634#issuecomment-1003152586) for discussion), but overall, performance remains very good.
