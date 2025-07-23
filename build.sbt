@@ -23,11 +23,14 @@ import org.openqa.selenium.firefox.{FirefoxOptions, FirefoxProfile}
 import org.scalajs.jsenv.nodejs.NodeJSEnv
 import org.scalajs.jsenv.selenium.SeleniumJSEnv
 import sbtcrossproject.CrossProject
+import scala.scalanative.build._
 
 import JSEnv._
 
+lazy val inCI = Option(System.getenv("CI")).contains("true")
+
 // sbt-git workarounds
-ThisBuild / useConsoleForROGit := !Option(System.getenv("CI")).contains("true")
+ThisBuild / useConsoleForROGit := !inCI
 
 ThisBuild / git.gitUncommittedChanges := {
   if ((ThisBuild / githubIsWorkflowBuild).value) {
@@ -40,7 +43,7 @@ ThisBuild / git.gitUncommittedChanges := {
   }
 }
 
-ThisBuild / tlBaseVersion := "3.6"
+ThisBuild / tlBaseVersion := "3.7"
 ThisBuild / tlUntaggedAreSnapshots := false
 
 ThisBuild / organization := "org.typelevel"
@@ -112,8 +115,8 @@ val Windows = "windows-latest"
 val MacOS = "macos-14"
 
 val Scala212 = "2.12.20"
-val Scala213 = "2.13.15"
-val Scala3 = "3.3.4"
+val Scala213 = "2.13.16"
+val Scala3 = "3.3.5"
 
 ThisBuild / crossScalaVersions := Seq(Scala3, Scala212, Scala213)
 ThisBuild / githubWorkflowScalaVersions := crossScalaVersions.value
@@ -320,12 +323,15 @@ ThisBuild / apiURL := Some(url("https://typelevel.org/cats-effect/api/3.x/"))
 
 ThisBuild / autoAPIMappings := true
 
-val CatsVersion = "2.11.0"
-val CatsMtlVersion = "1.3.1"
-val Specs2Version = "4.20.5"
-val ScalaCheckVersion = "1.17.1"
-val DisciplineVersion = "1.4.0"
-val CoopVersion = "1.2.0"
+ThisBuild / Test / testOptions += Tests.Argument("+l")
+
+val CatsVersion = "2.13.0"
+val CatsMtlVersion = "1.5.0"
+val ScalaCheckVersion = "1.18.1"
+val CoopVersion = "1.3.0"
+val MUnitVersion = "1.1.0"
+val MUnitScalaCheckVersion = "1.1.0"
+val DisciplineMUnitVersion = "2.0.0"
 
 val MacrotaskExecutorVersion = "1.1.1"
 
@@ -353,6 +359,17 @@ Global / tlCommandAliases ++= Map(
     "scalafmtSbt",
     "+root/scalafmtAll"
   )
+)
+
+lazy val nativeTestSettings = Seq(
+  nativeConfig ~= { c => // TODO: remove this when it seems to work
+    c.withSourceLevelDebuggingConfig(_.enableAll) // enable generation of debug information
+      .withOptimize(false) // disable Scala Native optimizer
+      .withMode(Mode.debug) // compile using LLVM without optimizations
+      .withCompileOptions(c.compileOptions ++ Seq("-gdwarf-4"))
+  },
+  envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "8g") else Map.empty[String, String] },
+  parallelExecution := !inCI
 )
 
 val jsProjects: Seq[ProjectReference] =
@@ -427,8 +444,7 @@ lazy val kernel = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-kernel",
     libraryDependencies ++= Seq(
-      "org.typelevel" %%% "cats-core" % CatsVersion,
-      "org.specs2" %%% "specs2-core" % Specs2Version % Test
+      "org.typelevel" %%% "cats-core" % CatsVersion
     ),
     mimaBinaryIssueFilters ++= Seq(
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.kernel.Ref$SyncRef"),
@@ -439,7 +455,7 @@ lazy val kernel = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     libraryDependencies += "org.scala-js" %%% "scala-js-macrotask-executor" % MacrotaskExecutorVersion % Test
   )
   .nativeSettings(
-    libraryDependencies += "io.github.cquiroz" %%% "scala-java-time" % "2.5.0"
+    libraryDependencies += "io.github.cquiroz" %%% "scala-java-time" % "2.6.0"
   )
 
 /**
@@ -484,7 +500,7 @@ lazy val laws = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     name := "cats-effect-laws",
     libraryDependencies ++= Seq(
       "org.typelevel" %%% "cats-laws" % CatsVersion,
-      "org.typelevel" %%% "discipline-specs2" % DisciplineVersion % Test)
+      "org.typelevel" %%% "discipline-munit" % DisciplineMUnitVersion % Test)
   )
 
 /**
@@ -716,7 +732,10 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
       ProblemFilters.exclude[MissingClassProblem]("cats.effect.metrics.CpuStarvationMBean"),
       // changes to the `cats.effect.unsafe` package private code, see #4406
       ProblemFilters.exclude[DirectMissingMethodProblem](
-        "cats.effect.unsafe.WorkerThread.getSuspendedFiberCount")
+        "cats.effect.unsafe.WorkerThread.getSuspendedFiberCount"),
+      // protected constructor modified when fixing #4359
+      ProblemFilters.exclude[DirectMissingMethodProblem](
+        "cats.effect.unsafe.IORuntimeBuilder.<init>$default$10")
     ) ++ {
       if (tlIsScala3.value) {
         // Scala 3 specific exclusions
@@ -888,7 +907,20 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         ProblemFilters.exclude[MissingClassProblem](
           "cats.effect.metrics.JsCpuStarvationMetrics"),
         ProblemFilters.exclude[MissingClassProblem](
-          "cats.effect.metrics.JsCpuStarvationMetrics$")
+          "cats.effect.metrics.JsCpuStarvationMetrics$"),
+        // all package-private classes; introduced when we made Native multithreaded
+        ProblemFilters.exclude[MissingClassProblem]("cats.effect.unsafe.FiberExecutor"),
+        ProblemFilters.exclude[IncompatibleMethTypeProblem](
+          "cats.effect.unsafe.FiberMonitorImpl.this"),
+        ProblemFilters.exclude[MissingClassProblem]("cats.effect.unsafe.FiberMonitorPlatform"),
+        // all of the following are introduced by fixing #4359
+        // the first one is legitimate and was a public signature in 3.6.x (but a silently non-functional one)
+        ProblemFilters.exclude[DirectMissingMethodProblem](
+          "cats.effect.unsafe.IORuntimeBuilder.addPoller"),
+        ProblemFilters.exclude[DirectMissingMethodProblem](
+          "cats.effect.unsafe.IORuntimeBuilder.extraPollers"),
+        ProblemFilters.exclude[DirectMissingMethodProblem](
+          "cats.effect.unsafe.IORuntimeBuilder.extraPollers_=")
       )
     },
     mimaBinaryIssueFilters ++= {
@@ -942,10 +974,10 @@ lazy val testkit = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-testkit",
     libraryDependencies ++= Seq(
-      "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion,
-      "org.specs2" %%% "specs2-core" % Specs2Version % Test
+      "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion
     )
   )
+  .nativeSettings(nativeTestSettings)
 
 /**
  * Unit tests for the core project, utilizing the support provided by testkit.
@@ -958,8 +990,9 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
     name := "cats-effect-tests",
     libraryDependencies ++= Seq(
       "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion,
-      "org.specs2" %%% "specs2-scalacheck" % Specs2Version % Test,
-      "org.typelevel" %%% "discipline-specs2" % DisciplineVersion % Test,
+      "org.scalameta" %%% "munit" % MUnitVersion % Test,
+      "org.scalameta" %%% "munit-scalacheck" % MUnitScalaCheckVersion % Test,
+      "org.typelevel" %%% "discipline-munit" % DisciplineMUnitVersion % Test,
       "org.typelevel" %%% "cats-kernel-laws" % CatsVersion % Test,
       "org.typelevel" %%% "cats-mtl-laws" % CatsMtlVersion % Test
     ),
@@ -976,18 +1009,19 @@ lazy val tests: CrossProject = crossProject(JSPlatform, JVMPlatform, NativePlatf
     Test / javaOptions += "-Dcats.effect.trackFiberContext=true"
   )
   .nativeSettings(
-    Compile / mainClass := Some("catseffect.examples.NativeRunner")
+    Compile / mainClass := Some("catseffect.examples.NativeRunner"),
+    nativeTestSettings
   )
 
 def configureIOAppTests(p: Project): Project =
   p.enablePlugins(NoPublishPlugin, BuildInfoPlugin)
     .settings(
       Test / unmanagedSourceDirectories += (LocalRootProject / baseDirectory).value / "ioapp-tests" / "src" / "test" / "scala",
-      libraryDependencies += "org.specs2" %%% "specs2-core" % Specs2Version % Test,
+      libraryDependencies += "org.scalameta" %%% "munit" % MUnitVersion % Test,
       buildInfoPackage := "cats.effect",
       buildInfoKeys ++= Seq(
         "jsRunner" -> (tests.js / Compile / fastOptJS / artifactPath).value,
-        "nativeRunner" -> (tests.native / Compile / nativeLink / artifactPath).value
+        "nativeRunner" -> (tests.native / Compile / crossTarget).value / (tests.native / Compile / moduleName).value
       )
     )
 
@@ -1031,8 +1065,7 @@ lazy val std = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .settings(
     name := "cats-effect-std",
     libraryDependencies ++= Seq(
-      "org.scalacheck" %%% "scalacheck" % ScalaCheckVersion % Test,
-      "org.specs2" %%% "specs2-scalacheck" % Specs2Version % Test
+      "org.scalameta" %%% "munit" % MUnitVersion % Test
     ),
     mimaBinaryIssueFilters ++= {
       if (tlIsScala3.value) {

@@ -189,7 +189,8 @@ trait IOApp {
    * beyond a few percentage points, and the default value is optimal (or close to optimal) in
    * ''most'' common scenarios.
    *
-   * '''This setting is JVM-specific and will not compile on JavaScript.'''
+   * '''This setting is specific to the JVM and Scala Native, and will not compile on
+   * JavaScript.'''
    *
    * For more details on Cats Effect's runtime threading model please see
    * [[https://typelevel.org/cats-effect/docs/thread-model]].
