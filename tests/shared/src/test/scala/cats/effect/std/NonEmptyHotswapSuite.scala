@@ -26,15 +26,15 @@ import cats.syntax.all._
 
 import scala.concurrent.duration._
 
-class Hotswap2Suite extends BaseSuite {
+class NonEmptyHotswapSuite extends BaseSuite {
   outer =>
   def logged(log: Ref[IO, List[String]], name: String): Resource[IO, Unit] =
     Resource.make(log.update(_ :+ s"open $name"))(_ => log.update(_ :+ s"close $name"))
 
-  real("run finalizer of target run when Hotswap2 is finalized") {
+  real("run finalizer of target run when NonEmptyHotSwap is finalized") {
     val op = for {
       log <- Ref.of[IO, List[String]](List())
-      _ <- Hotswap2[IO, Unit](logged(log, "a")).use(_ => IO.unit)
+      _ <- NonEmptyHotswap[IO, Unit](logged(log, "a")).use(_ => IO.unit)
       value <- log.get
     } yield value
 
@@ -49,7 +49,7 @@ class Hotswap2Suite extends BaseSuite {
     val op = for {
       log <- Ref.of[IO, List[String]](List())
       _ <-
-        Hotswap2[IO, Unit](logged(log, "a")).use(_.swap(logged(log, "b")))
+        NonEmptyHotswap[IO, Unit](logged(log, "a")).use(_.swap(logged(log, "b")))
       value <- log.get
     } yield value
 
@@ -63,7 +63,7 @@ class Hotswap2Suite extends BaseSuite {
   real("finalize old resource on clear") {
     val op = for {
       log <- Ref.of[IO, List[String]](List())
-      _ <- Hotswap2[IO, Option[Unit]](logged(log, "a").map(_.some)).use { hotswap =>
+      _ <- NonEmptyHotswap[IO, Option[Unit]](logged(log, "a").map(_.some)).use { hotswap =>
         hotswap.clear *> hotswap.swap(logged(log, "b").map(_.some))
       }
       value <- log.get
@@ -80,7 +80,7 @@ class Hotswap2Suite extends BaseSuite {
     val r0 = Resource.make(IO.ref(1))(_.set(10))
     val r1 = Resource.make(IO.ref(2))(_.set(20))
     val r2 = Resource.make(IO.ref(3))(_.set(30))
-    val go = Hotswap2[IO, Ref[IO, Int]](r0).use { hs =>
+    val go = NonEmptyHotswap[IO, Ref[IO, Int]](r0).use { hs =>
       hs.swap(r1) *> (IO.sleep(1.second) *> hs.swap(r2)).background.surround {
         hs.get.use { ref =>
           val notReleased = ref.get.flatMap(b => IO(assertEquals(b, 2)))
@@ -92,10 +92,10 @@ class Hotswap2Suite extends BaseSuite {
     assertCompleteAs(go, ())
   }
 
-  ticked("not finalize Hotswap2 while resource is in use") { implicit ticker =>
+  ticked("not finalize NonEmptyHotSwap while resource is in use") { implicit ticker =>
     val r0 = Resource.make(IO.ref(1))(_.set(10))
     val r1 = Resource.make(IO.ref(2))(_.set(20))
-    val go = Hotswap2[IO, Ref[IO, Int]](r0).allocated.flatMap {
+    val go = NonEmptyHotswap[IO, Ref[IO, Int]](r0).allocated.flatMap {
       case (hs, fin) =>
         hs.swap(r1) *> (IO.sleep(1.second) *> fin).background.surround {
           hs.get.use { ref =>
@@ -109,7 +109,7 @@ class Hotswap2Suite extends BaseSuite {
   }
 
   ticked("resource can be accessed concurrently") { implicit ticker =>
-    val go = Hotswap2[IO, Unit](Resource.unit).use { hs =>
+    val go = NonEmptyHotswap[IO, Unit](Resource.unit).use { hs =>
       hs.get.useForever.background.surround {
         IO.sleep(1.second) *> hs.get.use_
       }
@@ -119,7 +119,7 @@ class Hotswap2Suite extends BaseSuite {
   }
 
   ticked("not block current resource while swap is instantiating new one") { implicit ticker =>
-    val go = Hotswap2[IO, Unit](Resource.unit).use { hs =>
+    val go = NonEmptyHotswap[IO, Unit](Resource.unit).use { hs =>
       hs.swap(IO.sleep(1.minute).toResource).start *>
         IO.sleep(5.seconds) *>
         hs.get.use_.timeout(1.second).void
@@ -131,7 +131,7 @@ class Hotswap2Suite extends BaseSuite {
     "successfully cancel during swap and run finalizer if cancellation is requested while waiting for get to release") {
     implicit ticker =>
       val go = Ref.of[IO, List[String]](List()).flatMap { log =>
-        Hotswap2[IO, Unit](logged(log, "a")).use { hs =>
+        NonEmptyHotswap[IO, Unit](logged(log, "a")).use { hs =>
           for {
             _ <- hs.get.evalMap(_ => IO.sleep(1.minute)).use_.start
             _ <- IO.sleep(2.seconds)
@@ -146,7 +146,7 @@ class Hotswap2Suite extends BaseSuite {
 
   ticked("swap is safe to concurrent cancellation") { implicit ticker =>
     val go = IO.ref(false).flatMap { open =>
-      Hotswap2[IO, Unit](Resource.unit)
+      NonEmptyHotswap[IO, Unit](Resource.unit)
         .use { hs =>
           hs.swap(Resource.make(open.set(true))(_ =>
             open.getAndSet(false).map(assertEquals(_, true)).void))
@@ -159,7 +159,7 @@ class Hotswap2Suite extends BaseSuite {
 
   ticked("getOpt should not acquire a lock when there is no resource present") {
     implicit ticker =>
-      val go = Hotswap2.empty[IO, Unit].use { hs =>
+      val go = NonEmptyHotswap.empty[IO, Unit].use { hs =>
         hs.getOpt.useForever.start *>
           IO.sleep(2.seconds) *>
           hs.swap(Resource.unit.map(_.some))

@@ -10,16 +10,16 @@ Constructing a new [`Resource`](./resource.md) inside the body of a
 until after the inner resource is released. Consider for example writing a
 logger that will rotate log files every `n` bytes. 
 
-## Hotswap2
+## NonEmptyHotswap
 
-`Hotswap2` addresses this by exposing a linear sequence of resources as a single
+`NonEmptyHotswap` addresses this by exposing a linear sequence of resources as a single
 `Resource`. We can run the finalizers for the current resource and advance to
-the next one in the sequence using `Hotswap2#swap`. An error may be raised if
+the next one in the sequence using `NonEmptyHotswap#swap`. An error may be raised if
 the previous resource in the sequence is referenced after `swap` is invoked
 (as the resource will have been finalized).
 
 ```scala
-sealed trait Hotswap2[F[_], R] {
+sealed trait NonEmptyHotswap[F[_], R] {
   def swap(next: Resource[F, R]): F[Unit]
   def get: Resource[F, R]
 }
@@ -32,7 +32,7 @@ def rotating(n: Int): Resource[IO, Logger[IO]] = {
   def file(name: String): Resource[IO, File] = ???
   def write(file: File, msg: String): IO[Unit] = ???
 
-  Hotswap2[IO, File](file("0.log").flatMap { hs =>
+  NonEmptyHotswap[IO, File](file("0.log").flatMap { hs =>
     Resource.eval {
       for {
         index <- Ref[IO].of(0)

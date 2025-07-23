@@ -104,7 +104,7 @@ object Hotswap {
    */
   @deprecated("Use Hotswap2.empty", "3.7.0")
   def create[F[_], R](implicit F: Concurrent[F]): Resource[F, Hotswap[F, R]] =
-    Hotswap2.empty[F, R].map { nes =>
+    NonEmptyHotswap.empty[F, R].map { nes =>
       new Hotswap[F, R] {
         override def swap(next: Resource[F, R]): F[R] = {
           // Warning: this leaks the contents of the Resource.
