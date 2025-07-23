@@ -40,10 +40,14 @@ final class TestConsole[F[_]: ApplicativeThrow](
   import inspector.log
 
   override def readLineWithCharset(charset: Charset): F[String] = stdIn.readLine(charset)
-  override def print[A](a: A)(implicit S: Show[A]): F[Unit] = log(Op.Print(a.show))
-  override def println[A](a: A)(implicit S: Show[A]): F[Unit] = log(Op.Println(a.show))
-  override def error[A](a: A)(implicit S: Show[A]): F[Unit] = log(Op.Error(a.show))
-  override def errorln[A](a: A)(implicit S: Show[A]): F[Unit] = log(Op.Errorln(a.show))
+  override def print[A](a: A)(implicit S: Show[A] = Show.fromToString[A]): F[Unit] = log(
+    Op.Print(a.show))
+  override def println[A](a: A)(implicit S: Show[A] = Show.fromToString[A]): F[Unit] = log(
+    Op.Println(a.show))
+  override def error[A](a: A)(implicit S: Show[A] = Show.fromToString[A]): F[Unit] = log(
+    Op.Error(a.show))
+  override def errorln[A](a: A)(implicit S: Show[A] = Show.fromToString[A]): F[Unit] = log(
+    Op.Errorln(a.show))
 
   private[testkit] def close: F[Unit] =
     stdIn.close.recover { case ConsoleClosedException() => () } *> inspector.log(Op.Closed)
@@ -246,17 +250,6 @@ object TestConsole {
   trait TestStdIn[F[_]] {
 
     /**
-     * Write a string to the simulated stdIn using the system-default charset
-     *
-     * Blocked calls to [[TestConsole.readLineWithCharset]] will be woken up if `str` contains
-     * one or more lines.
-     *
-     * @note
-     *   Blocked calls will be woken in a first-in-first-out order.
-     */
-    def write[A](value: A)(implicit S: Show[A]): F[Unit]
-
-    /**
      * Write a string to the simulated stdIn
      *
      * Blocked calls to [[TestConsole.readLineWithCharset]] will be woken up if `str` contains
@@ -265,18 +258,8 @@ object TestConsole {
      * @note
      *   Blocked calls will be woken in a first-in-first-out order.
      */
-    def write[A](value: A, charset: Charset)(implicit S: Show[A]): F[Unit]
-
-    /**
-     * Write a string and a newline to the simulated stdIn with the system-default charset
-     *
-     * At least one blocked call to [[TestConsole.readLineWithCharset]] will be woken up, if it
-     * exists.
-     *
-     * @note
-     *   Blocked calls will be woken in a first-in-first-out order.
-     */
-    def writeln[A](value: A)(implicit S: Show[A]): F[Unit]
+    def write[A](value: A, charset: Charset = Charset.defaultCharset())(
+        implicit S: Show[A] = Show.fromToString[A]): F[Unit]
 
     /**
      * Write a string and a newline to the simulated stdIn
@@ -287,7 +270,8 @@ object TestConsole {
      * @note
      *   Blocked calls will be woken in a first-in-first-out order.
      */
-    def writeln[A](value: A, charset: Charset)(implicit S: Show[A]): F[Unit]
+    def writeln[A](value: A, charset: Charset = Charset.defaultCharset())(
+        implicit S: Show[A] = Show.fromToString[A]): F[Unit]
 
     private[testkit] def readLine(charset: Charset): F[String]
     private[testkit] def close: F[Unit]
@@ -300,20 +284,14 @@ object TestConsole {
         new TestStdIn[F] {
           import inspector.log
 
-          private val defaultCharset = Charset.defaultCharset()
-
           private def streamClosed = new EOFException("End Of File")
 
-          override def write[A](value: A)(implicit S: Show[A]): F[Unit] =
-            write(value, defaultCharset)
-
-          override def write[A](value: A, charset: Charset)(implicit S: Show[A]): F[Unit] =
+          override def write[A](value: A, charset: Charset = Charset.defaultCharset())(
+              implicit S: Show[A] = Show.fromToString[A]): F[Unit] =
             log(Op.Write(value.show)) *> writeImpl(State.Chunk(value.show, charset))
 
-          override def writeln[A](value: A)(implicit S: Show[A]): F[Unit] =
-            writeln(value, defaultCharset)
-
-          override def writeln[A](value: A, charset: Charset)(implicit S: Show[A]): F[Unit] =
+          override def writeln[A](value: A, charset: Charset = Charset.defaultCharset())(
+              implicit S: Show[A] = Show.fromToString[A]): F[Unit] =
             log(Op.Writeln(value.show)) *> writeImpl(State.Chunk(show"$value\n", charset))
 
           private def writeImpl(chunk: State.Chunk): F[Unit] =
