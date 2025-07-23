@@ -32,48 +32,62 @@ final class MutexSuite extends BaseSuite with DetectPlatform {
   tests("MapK'd Mutex", Mutex[IO].map(_.mapK[IO](FunctionK.id)))
 
   def tests(name: String, mutex: IO[Mutex[IO]]) = {
-    real(s"$name execute action if free") {
-      mutex.flatMap { m => m.lock.surround(IO.unit).mustEqual(()) }
+    real(
+      s"${name} should execute action if free"
+    ) {
+      val p = mutex.flatMap { m => m.lock.surround(IO.unit) }
+
+      p.mustEqual(())
     }
 
-    real(s"$name be reusable") {
-      mutex.flatMap { m =>
-        val p = m.lock.surround(IO.unit)
-
-        (p, p).tupled.mustEqual(((), ()))
+    real(
+      s"${name} should be reusable"
+    ) {
+      val p = mutex.flatMap { m =>
+        m.lock.surround(IO.unit) >>
+          m.lock.surround(IO.unit)
       }
+
+      p.mustEqual(())
     }
 
-    real(s"$name free on error") {
-      mutex.flatMap { m =>
-        val p =
-          m.lock.surround(IO.raiseError(new Exception)).attempt >>
-            m.lock.surround(IO.unit)
-
-        p.mustEqual(())
+    real(
+      s"${name} should free on error"
+    ) {
+      val p = mutex.flatMap { m =>
+        m.lock.surround(IO.raiseError(new Exception)).attempt >>
+          m.lock.surround(IO.unit)
       }
+
+      p.mustEqual(())
     }
 
-    ticked(s"$name block action if not free") { implicit ticker =>
-      assertNonTerminate(mutex.flatMap { m =>
+    ticked(
+      s"${name} should block action if not free"
+    ) { implicit ticker =>
+      val p = mutex.flatMap { m =>
         m.lock.surround(IO.never) >>
           m.lock.surround(IO.unit)
-      })
+      }
+
+      assertNonTerminate(p)
     }
 
-    ticked(s"$name used concurrently") { implicit ticker =>
-      assertCompleteAs(
-        mutex.flatMap { m =>
-          val p =
-            IO.sleep(1.second) >>
-              m.lock.surround(IO.unit)
+    ticked(
+      s"${name} should support concurrent usage"
+    ) { implicit ticker =>
+      val p = mutex.flatMap { m =>
+        val usage = IO.sleep(1.second) >> m.lock.surround(IO.sleep(1.second))
 
-          (p, p).parTupled
-        },
-        ((), ()))
+        (usage, usage).parTupled
+      }
+
+      assertCompleteAs(p, ((), ()))
     }
 
-    ticked(s"$name free on cancellation") { implicit ticker =>
+    ticked(
+      s"${name} should free on cancellation"
+    ) { implicit ticker =>
       val p = for {
         m <- mutex
         f <- m.lock.surround(IO.never).start
@@ -85,7 +99,9 @@ final class MutexSuite extends BaseSuite with DetectPlatform {
       assertCompleteAs(p, ())
     }
 
-    ticked(s"$name allow cancellation if blocked waiting for lock") { implicit ticker =>
+    ticked(
+      s"${name} should allow cancellation if blocked waiting for lock"
+    ) { implicit ticker =>
       val p = for {
         m <- mutex
         ref <- IO.ref(false)
@@ -102,7 +118,9 @@ final class MutexSuite extends BaseSuite with DetectPlatform {
       assertCompleteAs(p, true)
     }
 
-    ticked(s"$name gracefully handle canceled waiters") { implicit ticker =>
+    ticked(
+      s"${name} should gracefully handle canceled waiters"
+    ) { implicit ticker =>
       val p = mutex.flatMap { m =>
         m.lock.surround {
           for {
@@ -112,15 +130,22 @@ final class MutexSuite extends BaseSuite with DetectPlatform {
           } yield ()
         }
       }
+
       assertCompleteAs(p, ())
     }
 
-    real(s"$name not deadlock when highly contended") {
-      mutex.flatMap(_.lock.use_.parReplicateA_(10)).replicateA_(10000)
+    real(
+      s"${name} should not deadlock when highly contended"
+    ) {
+      val p = mutex.flatMap(_.lock.use_.parReplicateA_(10)).replicateA_(10000).void
+
+      p.mustEqual(())
     }
 
-    real(s"$name handle cancelled acquire") {
-      val t = mutex.flatMap { m =>
+    real(
+      s"${name} should handle cancelled acquire"
+    ) {
+      val p = mutex.flatMap { m =>
         val short = m.lock.use { _ => IO.sleep(5.millis) }
         val long = m.lock.use { _ => IO.sleep(20.millis) }
         val tsk = IO.race(IO.race(short, short), IO.race(long, long)).flatMap { _ =>
@@ -133,11 +158,13 @@ final class MutexSuite extends BaseSuite with DetectPlatform {
         tsk.replicateA_(if (isJVM) 3000 else 5)
       }
 
-      t mustEqual (())
+      p.mustEqual(())
     }
 
-    real(s"$name handle multiple concurrent cancels during release") {
-      val t = mutex.flatMap { m =>
+    real(
+      s"${name} should handle multiple concurrent cancels during release"
+    ) {
+      val p = mutex.flatMap { m =>
         val task = for {
           f1 <- m.lock.allocated
           (_, f1Release) = f1
@@ -154,35 +181,37 @@ final class MutexSuite extends BaseSuite with DetectPlatform {
         task.replicateA_(if (isJVM) 1000 else 5)
       }
 
-      t mustEqual (())
+      p.mustEqual(())
     }
 
-    ticked(s"$name preserve waiters order (FIFO) on a non-race cancellation") {
-      implicit ticker =>
-        val numbers = List.range(1, 10)
-        val p = (mutex, IO.ref(List.empty[Int])).flatMapN {
-          case (m, ref) =>
-            for {
-              f1 <- m.lock.allocated
-              (_, f1Release) = f1
-              f2 <- m.lock.use_.start
-              _ <- IO.sleep(1.millis)
-              t <- numbers.parTraverse_ { i =>
-                IO.sleep(i.millis) >>
-                  m.lock.surround(ref.update(acc => i :: acc))
-              }.start
-              _ <- IO.sleep(100.millis)
-              _ <- f2.cancel
-              _ <- f1Release
-              _ <- t.join
-              r <- ref.get
-            } yield r.reverse
-        }
+    ticked(
+      s"${name} should preserve waiters order (FIFO) on a non-race cancellation"
+    ) { implicit ticker =>
+      val numbers = List.range(1, 10)
+      val p = (mutex, IO.ref(List.empty[Int])).flatMapN { (m, ref) =>
+        for {
+          f1 <- m.lock.allocated
+          (_, f1Release) = f1
+          f2 <- m.lock.use_.start
+          _ <- IO.sleep(1.millis)
+          t <- numbers.parTraverse_ { i =>
+            IO.sleep(i.millis) >>
+              m.lock.surround(ref.update(acc => i :: acc))
+          }.start
+          _ <- IO.sleep(100.millis)
+          _ <- f2.cancel
+          _ <- f1Release
+          _ <- t.join
+          r <- ref.get
+        } yield r.reverse
+      }
 
-        assertCompleteAs(p, numbers)
+      assertCompleteAs(p, numbers)
     }
 
-    ticked(s"$name cancellation must not corrupt Mutex") { implicit ticker =>
+    ticked(
+      s"Cancellation should not corrupt ${name}"
+    ) { implicit ticker =>
       val p = mutex.flatMap { m =>
         for {
           f1 <- m.lock.allocated
