@@ -1149,7 +1149,12 @@ lazy val std = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         ProblemFilters.exclude[DirectMissingMethodProblem](
           "cats.effect.std.Mutex#ConcurrentImpl.EmptyCell"),
         ProblemFilters.exclude[DirectMissingMethodProblem](
-          "cats.effect.std.Mutex#ConcurrentImpl.LockQueueCell")
+          "cats.effect.std.Mutex#ConcurrentImpl.LockQueueCell"),
+        // #4424, refactored private classes
+        ProblemFilters.exclude[IncompatibleMethTypeProblem](
+          "cats.effect.std.AtomicCell#AsyncImpl.this"),
+        ProblemFilters.exclude[IncompatibleMethTypeProblem](
+          "cats.effect.std.AtomicCell#ConcurrentImpl.this")
       )
   )
   .jsSettings(
