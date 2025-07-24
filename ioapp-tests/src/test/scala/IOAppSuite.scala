@@ -158,7 +158,15 @@ class IOAppSuite extends FunSuite {
       test("pass all arguments to child") {
         val expected = List("the", "quick", "brown", "fox jumped", "over")
         val h = platform("Arguments", expected)
-        assertEquals(h.awaitStatus(), 0)
+        val exitCode = h.awaitStatus()
+        if (exitCode != 0) {
+          System.err.println("STDOUT:")
+          System.err.println(h.stdout())
+          System.err.println("STDERR:")
+          System.err.println(h.stderr())
+          System.err.println("END.")
+        }
+        assertEquals(exitCode, 0)
         assertEquals(
           h.stdout(),
           expected.mkString("", System.lineSeparator(), System.lineSeparator())

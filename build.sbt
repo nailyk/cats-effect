@@ -362,13 +362,12 @@ Global / tlCommandAliases ++= Map(
 )
 
 lazy val nativeTestSettings = Seq(
-  nativeConfig ~= { c => // TODO: remove this when it seems to work
-    c.withSourceLevelDebuggingConfig(_.enableAll) // enable generation of debug information
-      .withOptimize(false) // disable Scala Native optimizer
+  nativeConfig ~= { c =>
+    c.withSourceLevelDebuggingConfig(_.enableAll.generateFunctionSourcePositions(false))
+      .withOptimize(true) // `false` doesn't work due to https://github.com/scala-native/scala-native/issues/4366
       .withMode(Mode.debug) // compile using LLVM without optimizations
-      .withCompileOptions(c.compileOptions ++ Seq("-gdwarf-4"))
   },
-  envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "8g") else Map.empty[String, String] },
+  envVars ++= { if (inCI) Map("GC_MAXIMUM_HEAP_SIZE" -> "10g") else Map.empty[String, String] },
   parallelExecution := !inCI
 )
 
