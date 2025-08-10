@@ -16,7 +16,7 @@ trait AtomicMap[F[_], K, V] {
 }
 ```
 
-It is conceptually similar to a `AtomicMap[F, Map[K, V]]`, but with better ergonomics when
+It is conceptually similar to a `AtomicCell[F, Map[K, V]]`, but with better ergonomics when
 working on a per key basis. Note, however, that it does not support atomic updates to
 multiple keys.
 
