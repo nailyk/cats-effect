@@ -35,7 +35,7 @@ value or return a `MapRef[F, K, Option[V]]`.
 This is probably one of the most common uses of this datatype.
 
 ```scala mdoc:reset:silent
-//> using lib "org.typelevel::cats-effect::3.6.3"
+//> using lib "org.typelevel::cats-effect:3.6.3"
 
 import cats.effect.IO
 import cats.effect.std.MapRef
