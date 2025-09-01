@@ -1149,7 +1149,21 @@ lazy val std = crossProject(JSPlatform, JVMPlatform, NativePlatform)
         ProblemFilters.exclude[DirectMissingMethodProblem](
           "cats.effect.std.Mutex#ConcurrentImpl.EmptyCell"),
         ProblemFilters.exclude[DirectMissingMethodProblem](
-          "cats.effect.std.Mutex#ConcurrentImpl.LockQueueCell")
+          "cats.effect.std.Mutex#ConcurrentImpl.LockQueueCell"),
+        // #4424, refactored private classes
+        ProblemFilters.exclude[IncompatibleMethTypeProblem](
+          "cats.effect.std.AtomicCell#AsyncImpl.this"),
+        ProblemFilters.exclude[IncompatibleMethTypeProblem](
+          "cats.effect.std.AtomicCell#ConcurrentImpl.this"),
+        // #4424, false warnings in CommonImpl due to lightbend-labs/mima#211
+        ProblemFilters.exclude[DirectAbstractMethodProblem](
+          "cats.effect.std.AtomicCell.modify"),
+        ProblemFilters.exclude[DirectAbstractMethodProblem](
+          "cats.effect.std.AtomicCell.evalUpdate"),
+        ProblemFilters.exclude[DirectAbstractMethodProblem](
+          "cats.effect.std.AtomicCell.evalGetAndUpdate"),
+        ProblemFilters.exclude[DirectAbstractMethodProblem](
+          "cats.effect.std.AtomicCell.evalUpdateAndGet")
       )
   )
   .jsSettings(
