@@ -327,7 +327,7 @@ ThisBuild / Test / testOptions += Tests.Argument("+l")
 
 val CatsVersion = "2.13.0"
 val CatsMtlVersion = "1.6.0"
-val ScalaCheckVersion = "1.18.1"
+val ScalaCheckVersion = "1.19.0"
 val CoopVersion = "1.3.0"
 val MUnitVersion = "1.1.0"
 val MUnitScalaCheckVersion = "1.1.0"
