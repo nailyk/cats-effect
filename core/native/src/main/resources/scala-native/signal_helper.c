@@ -1,9 +1,9 @@
 #ifdef CATS_EFFECT_SIGNAL_HELPER
 
-#include <stddef.h>
-
 // we'll need POSIX for `sigaction`:
 #define _POSIX_C_SOURCE 1
+
+#include <stddef.h>
 #include <signal.h>
 
 typedef void (*Handler)(int);
