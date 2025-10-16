@@ -1,5 +1,9 @@
 #ifdef CATS_EFFECT_SIGNAL_HELPER
+
 #include <stddef.h>
+
+// we'll need POSIX for `sigaction`:
+#define _POSIX_C_SOURCE 1
 #include <signal.h>
 
 typedef void (*Handler)(int);
@@ -19,4 +23,5 @@ int cats_effect_install_handler(int signum, Handler handler) {
     }
     return sigaction(signum, &action, NULL);
 }
+
 #endif
