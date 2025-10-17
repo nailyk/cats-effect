@@ -33,7 +33,7 @@ class IOFiberSuite extends BaseSuite with DetectPlatform {
         s <- IO(f.toString)
         // _ <- IO.println(s)
         _ <- f.cancel
-        _ <- IO(assert(s.matches(pattern)))
+        _ <- IO(assert(s.matches(pattern), s))
       } yield ()
     }
 
@@ -48,7 +48,7 @@ class IOFiberSuite extends BaseSuite with DetectPlatform {
         _ <- IO.sleep(100.milli)
         s <- IO(f.toString)
         _ <- f.cancel
-        _ <- IO(assert(s.matches(pattern)))
+        _ <- IO(assert(s.matches(pattern), s))
       } yield ()
     }
   } else {
