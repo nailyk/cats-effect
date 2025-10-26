@@ -21,7 +21,9 @@ import cats.arrow.FunctionK
 import cats.data.{EitherT, Ior, IorT, Kleisli, OptionT, WriterT}
 import cats.implicits._
 
-import scala.annotation.{tailrec, unused}
+import org.typelevel.scalaccompat.annotation.unused
+
+import scala.annotation.tailrec
 import scala.concurrent.{ExecutionContext, Future}
 
 import java.util.concurrent.Executor
