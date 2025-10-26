@@ -21,7 +21,7 @@ import cats.arrow.FunctionK
 import cats.data.{EitherT, Ior, IorT, Kleisli, OptionT, WriterT}
 import cats.implicits._
 
-import scala.annotation.{nowarn, tailrec}
+import scala.annotation.{tailrec, unused}
 import scala.concurrent.{ExecutionContext, Future}
 
 import java.util.concurrent.Executor
@@ -296,8 +296,7 @@ trait Async[F[_]] extends AsyncPlatform[F] with Sync[F] with Temporal[F] {
    * @param limit
    *   The maximum number of stages to evaluate prior to forcibly yielding to `F`
    */
-  @nowarn("msg=never used")
-  def syncStep[G[_], A](fa: F[A], limit: Int)(implicit G: Sync[G]): G[Either[F[A], A]] =
+  def syncStep[G[_], A](fa: F[A], @unused limit: Int)(implicit G: Sync[G]): G[Either[F[A], A]] =
     G.pure(Left(fa))
 
   /*
