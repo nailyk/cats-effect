@@ -56,9 +56,6 @@ trait TestInstances extends ParallelFGenerators with OutcomeGenerators with Sync
 
         val F: Async[IO] = IO.asyncForIO
 
-        def cogenCase[B: Cogen]: Cogen[OutcomeIO[B]] =
-          OutcomeGenerators.cogenOutcome[IO, Throwable, B]
-
         val arbitraryEC: Arbitrary[ExecutionContext] = outer.arbitraryExecutionContext
 
         val cogenFU: Cogen[IO[Unit]] = cogenIO[Unit]
