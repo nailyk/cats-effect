@@ -16,9 +16,12 @@
 
 package cats.effect
 
+import org.typelevel.scalaccompat.annotation.nowarn3
+
 class ThunkSuite extends BaseSuite {
 
   testUnit("return the same function") {
+    @nowarn3
     var i = 0
     val f = () => i += 1
     assertEquals(IO.delay(f()).asInstanceOf[IO.Delay[Unit]].thunk, f)
