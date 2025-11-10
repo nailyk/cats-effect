@@ -16,8 +16,6 @@
 
 package cats.effect
 
-import java.time.ZoneOffset
-
 trait SyncIOPlatformSuite { self: BaseSuite =>
   def platformTests() = {
 
@@ -45,7 +43,7 @@ trait SyncIOPlatformSuite { self: BaseSuite =>
         now.getOffset.getTotalSeconds
       )
 
-      assertCompleteAsSync(op, (true, ZoneOffset.UTC.getTotalSeconds))
+      assertCompleteAsSync(op, (true, 0))
     }
 
   }
